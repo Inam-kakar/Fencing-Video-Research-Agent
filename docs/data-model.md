@@ -189,8 +189,6 @@ search_queries -> collection_runs -> search_hits -> videos
 
 ## Not Implemented Yet
 
-The project does not yet implement YouTube API adapters, live API calls, CLI commands,
-application use cases, exports, pandas export logic, video downloading, computer
-vision, event detection, scoring detection, web UI, cloud deployment, or metadata
-snapshot history.
-
+The project does not yet implement exports, pandas export logic, video downloading,
+computer vision, event detection, scoring detection, web UI, cloud deployment, or
+metadata snapshot history.

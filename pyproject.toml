@@ -21,6 +21,9 @@ dependencies = [
     "isodate>=0.7,<1",
 ]
 
+[project.scripts]
+fencing-video-research-agent = "fencing_video_research_agent.interface.cli:app"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8,<10",

@@ -16,6 +16,8 @@ def test_settings_load_youtube_api_key_from_environment(monkeypatch: pytest.Monk
     settings = load_settings(env_file=None)
 
     assert settings.youtube_api_key.get_secret_value() == "test-api-key"
+    assert settings.database_url == "sqlite:///data/fencing_video_research.db"
+    assert settings.log_level == "INFO"
 
 
 def test_missing_youtube_api_key_raises_sanitized_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,3 +39,14 @@ def test_secret_string_representation_does_not_expose_key(
 
     assert "super-secret-key" not in str(settings.youtube_api_key)
     assert "super-secret-key" not in repr(settings)
+
+
+def test_settings_load_database_url_and_log_level(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("YOUTUBE_API_KEY", "test-api-key")
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///tmp/research.sqlite")
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+
+    settings = load_settings(env_file=None)
+
+    assert settings.database_url == "sqlite:///tmp/research.sqlite"
+    assert settings.log_level == "DEBUG"

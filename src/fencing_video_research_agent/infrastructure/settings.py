@@ -22,6 +22,11 @@ class AppSettings(BaseSettings):
     )
 
     youtube_api_key: SecretStr = Field(validation_alias="YOUTUBE_API_KEY")
+    database_url: str = Field(
+        default="sqlite:///data/fencing_video_research.db",
+        validation_alias="DATABASE_URL",
+    )
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
 
 
 def load_settings(*, env_file: str | Path | None = ".env") -> AppSettings:
@@ -35,6 +40,10 @@ def load_settings(*, env_file: str | Path | None = ".env") -> AppSettings:
 
     if not settings.youtube_api_key.get_secret_value().strip():
         raise _configuration_error()
+    if not settings.database_url.strip():
+        raise ConfigurationError("Missing or invalid configuration: DATABASE_URL is required")
+    if not settings.log_level.strip():
+        raise ConfigurationError("Missing or invalid configuration: LOG_LEVEL is required")
 
     return settings
 

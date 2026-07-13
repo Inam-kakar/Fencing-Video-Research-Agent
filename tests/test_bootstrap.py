@@ -1,0 +1,74 @@
+"""Tests for the application composition root."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import pytest
+from pydantic import SecretStr
+
+from fencing_video_research_agent import bootstrap
+from fencing_video_research_agent.infrastructure.settings import AppSettings
+
+
+@dataclass
+class FakeEngine:
+    """Tiny fake SQLAlchemy engine for bootstrap wiring tests."""
+
+    disposed: bool = False
+
+    def dispose(self) -> None:
+        self.disposed = True
+
+
+class FakeGateway:
+    """Fake YouTube gateway used only to verify bootstrap wiring."""
+
+    def __init__(self, *, client: object, clock: object) -> None:
+        self.client = client
+        self.clock = clock
+
+
+def test_build_collect_videos_runtime_wires_infrastructure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    fake_client = object()
+    fake_engine = FakeEngine()
+    fake_session_factory = object()
+
+    settings = AppSettings.model_construct(
+        youtube_api_key=SecretStr("test-api-key"),
+        database_url="sqlite:///tmp/research.sqlite",
+        log_level="INFO",
+    )
+
+    def fake_create_client(api_key: SecretStr) -> object:
+        calls.append(f"client:{api_key.get_secret_value()}")
+        return fake_client
+
+    def fake_create_engine(database_url: str) -> FakeEngine:
+        calls.append(f"engine:{database_url}")
+        return fake_engine
+
+    def fake_create_session_factory(engine: FakeEngine) -> object:
+        calls.append(f"session:{engine is fake_engine}")
+        return fake_session_factory
+
+    monkeypatch.setattr(bootstrap, "create_youtube_data_api_client", fake_create_client)
+    monkeypatch.setattr(bootstrap, "create_database_engine", fake_create_engine)
+    monkeypatch.setattr(bootstrap, "create_session_factory", fake_create_session_factory)
+    monkeypatch.setattr(bootstrap, "YouTubeDataApiGateway", FakeGateway)
+
+    runtime = bootstrap.build_collect_videos_runtime(settings)
+
+    assert calls == [
+        "client:test-api-key",
+        "engine:sqlite:///tmp/research.sqlite",
+        "session:True",
+    ]
+    assert runtime.use_case is not None
+
+    runtime.close()
+
+    assert fake_engine.disposed is True

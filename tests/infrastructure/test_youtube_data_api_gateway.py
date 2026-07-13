@@ -1,4 +1,3 @@
-
 """Tests for the official YouTube Data API gateway adapter."""
 
 from __future__ import annotations
