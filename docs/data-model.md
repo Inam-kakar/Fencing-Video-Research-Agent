@@ -163,8 +163,34 @@ PostgreSQL later.
 
 ## Not Implemented Yet
 
-Milestone 2A does not implement repositories, Unit of Work, YouTube API adapters, live
-API calls, CLI commands, exports, pandas export logic, video downloading, computer
+## Repository And Unit Of Work Boundaries
+
+Milestone 2B adds repository ports and SQLAlchemy implementations for the Phase 1
+tables. Repository ports expose domain models and lightweight typed persistence
+handles, not SQLAlchemy sessions, ORM classes, or raw database integers.
+
+The repository groups are intentionally small:
+
+- video persistence and latest YouTube metadata;
+- search queries, collection runs, and search hits;
+- researcher annotations.
+
+The Unit of Work opens one SQLAlchemy session per transaction. It commits only when
+called explicitly, rolls back on exceptions, rolls back when a caller exits without
+committing, and always closes the session.
+
+Repository code preserves the schema relationship path:
+
+```text
+search_queries -> collection_runs -> search_hits -> videos
+```
+
+`search_hits` does not use `search_query_id` directly.
+
+## Not Implemented Yet
+
+The project does not yet implement YouTube API adapters, live API calls, CLI commands,
+application use cases, exports, pandas export logic, video downloading, computer
 vision, event detection, scoring detection, web UI, cloud deployment, or metadata
 snapshot history.
 
