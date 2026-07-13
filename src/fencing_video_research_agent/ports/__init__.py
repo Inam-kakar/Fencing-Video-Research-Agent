@@ -1,5 +1,6 @@
 """Application port contracts."""
 
+from fencing_video_research_agent.ports.clock import Clock
 from fencing_video_research_agent.ports.repositories import (
     AnnotationRepository,
     CollectionRepository,
@@ -24,6 +25,7 @@ from fencing_video_research_agent.ports.youtube import (
 
 __all__ = [
     "AnnotationRepository",
+    "Clock",
     "CollectionRepository",
     "CollectionRunNotFoundError",
     "CollectionRunRecordId",
