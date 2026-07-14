@@ -115,6 +115,43 @@ fencing-video-research-agent annotations clear-label <youtube_video_id>
 The current schema supports one relevance label per video. It does not support true
 multi-label annotation yet.
 
+## Export Stored Videos
+
+Export stored video metadata, compact collection provenance, and manual annotation
+fields without calling YouTube again:
+
+```powershell
+fencing-video-research-agent export videos
+```
+
+By default this writes CSV output to:
+
+```text
+data/exports/videos.csv
+```
+
+Export JSON instead:
+
+```powershell
+fencing-video-research-agent export videos --format json
+```
+
+Use a custom path when needed:
+
+```powershell
+fencing-video-research-agent export videos --output data/exports/my-videos.csv
+```
+
+Existing files are not overwritten unless explicitly requested:
+
+```powershell
+fencing-video-research-agent export videos --overwrite
+```
+
+Export commands use the local database only. They run Alembic migration checks before
+reading, do not collect or refresh metadata, and do not require `YOUTUBE_API_KEY`.
+Generated files under `data/exports/` are ignored by Git.
+
 ## Keep The Smoke Test Small
 
 For early project validation, do not raise `--max-results` above `5` unless you have a

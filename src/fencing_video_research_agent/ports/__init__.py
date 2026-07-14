@@ -1,6 +1,14 @@
 """Application port contracts."""
 
 from fencing_video_research_agent.ports.clock import Clock
+from fencing_video_research_agent.ports.exports import (
+    ExportFileExistsError,
+    VideoExportFormat,
+    VideoExportReader,
+    VideoExportRecord,
+    VideoExportWriter,
+    VideoExportWriteResult,
+)
 from fencing_video_research_agent.ports.repositories import (
     AnnotationRepository,
     CollectionRepository,
@@ -37,6 +45,7 @@ __all__ = [
     "CollectionRepository",
     "CollectionRunNotFoundError",
     "CollectionRunRecordId",
+    "ExportFileExistsError",
     "IncompleteVideoRecordError",
     "PermanentYouTubeGatewayError",
     "RepositoryError",
@@ -49,6 +58,11 @@ __all__ = [
     "StoredVideoSummary",
     "TransientYouTubeGatewayError",
     "UnitOfWork",
+    "VideoExportFormat",
+    "VideoExportReader",
+    "VideoExportRecord",
+    "VideoExportWriter",
+    "VideoExportWriteResult",
     "VideoNotFoundError",
     "VideoRecordId",
     "VideoRepository",

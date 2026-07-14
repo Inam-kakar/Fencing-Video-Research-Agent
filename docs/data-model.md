@@ -171,6 +171,20 @@ remain in relational columns, foreign keys, unique constraints, and check constr
 SQLAlchemy's `JSON` type keeps the design portable enough for SQLite now and
 PostgreSQL later.
 
+## Exported Video Dataset
+
+Milestone 8 adds a pandas-backed video export that reads the existing schema and
+writes one row per stored video to CSV or JSON. The export includes latest YouTube
+metadata, researcher annotation fields, and compact discovery provenance summaries
+such as discovery-run count, first and latest collection-run times, and first and
+latest query text.
+
+CSV exports encode structured fields such as `tags` and `fencer_names` as JSON
+strings to avoid delimiter ambiguity. JSON exports preserve those fields as arrays.
+
+The video export does not create new database tables, call YouTube, refresh metadata,
+or modify stored data. Full one-row-per-search-hit provenance exports are postponed.
+
 ## Not Implemented Yet
 
 ## Repository And Unit Of Work Boundaries
@@ -199,6 +213,6 @@ search_queries -> collection_runs -> search_hits -> videos
 
 ## Not Implemented Yet
 
-The project does not yet implement exports, pandas export logic, video downloading,
+The project does not yet implement search-hit export datasets, video downloading,
 computer vision, event detection, scoring detection, web UI, cloud deployment, or
 metadata snapshot history.

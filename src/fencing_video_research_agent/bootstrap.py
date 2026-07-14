@@ -10,6 +10,7 @@ from sqlalchemy.engine import Engine
 from fencing_video_research_agent.application import (
     ClearAnnotationLabelUseCase,
     CollectVideosUseCase,
+    ExportVideosUseCase,
     ListCollectionRunsUseCase,
     ListStoredVideosUseCase,
     SetAnnotationLabelUseCase,
@@ -20,9 +21,13 @@ from fencing_video_research_agent.application import (
     ShowStoredVideoUseCase,
 )
 from fencing_video_research_agent.infrastructure.clock import SystemClock
+from fencing_video_research_agent.infrastructure.exports import PandasVideoExportWriter
 from fencing_video_research_agent.infrastructure.persistence.database import (
     create_database_engine,
     create_session_factory,
+)
+from fencing_video_research_agent.infrastructure.persistence.export_repositories import (
+    SqlAlchemyVideoExportReader,
 )
 from fencing_video_research_agent.infrastructure.persistence.read_repositories import (
     SqlAlchemyStoredDataReader,
@@ -86,6 +91,19 @@ class AnnotationRuntime:
         self.engine.dispose()
 
 
+@dataclass(frozen=True, slots=True)
+class ExportVideosRuntime:
+    """Runtime resources for video export workflows."""
+
+    use_case: ExportVideosUseCase
+    engine: Engine
+
+    def close(self) -> None:
+        """Dispose of database resources held by the runtime."""
+
+        self.engine.dispose()
+
+
 def build_collect_videos_runtime(settings: AppSettings) -> CollectVideosRuntime:
     """Wire the collect-videos use case to concrete infrastructure."""
 
@@ -138,6 +156,19 @@ def build_annotation_runtime(settings: AppSettings) -> AnnotationRuntime:
             unit_of_work_factory=unit_of_work_factory,
             clock=clock,
         ),
+        engine=engine,
+    )
+
+
+def build_export_videos_runtime(settings: AppSettings) -> ExportVideosRuntime:
+    """Wire video export use case without constructing YouTube clients."""
+
+    engine = create_database_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+    reader = SqlAlchemyVideoExportReader(session_factory)
+    writer = PandasVideoExportWriter()
+    return ExportVideosRuntime(
+        use_case=ExportVideosUseCase(reader=reader, writer=writer),
         engine=engine,
     )
 

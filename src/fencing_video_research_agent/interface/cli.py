@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -14,6 +15,9 @@ from fencing_video_research_agent.application import (
     ClearAnnotationLabelResult,
     CollectVideosRequest,
     CollectVideosResult,
+    ExportVideosRequest,
+    ExportVideosResult,
+    InvalidExportFormatError,
     InvalidReviewStatusError,
     ListCollectionRunsRequest,
     ListCollectionRunsResult,
@@ -35,9 +39,11 @@ from fencing_video_research_agent.application import (
 from fencing_video_research_agent.bootstrap import (
     AnnotationRuntime,
     CollectVideosRuntime,
+    ExportVideosRuntime,
     VideoInspectionRuntime,
     build_annotation_runtime,
     build_collect_videos_runtime,
+    build_export_videos_runtime,
     build_video_inspection_runtime,
 )
 from fencing_video_research_agent.infrastructure.migrations import (
@@ -49,6 +55,7 @@ from fencing_video_research_agent.infrastructure.settings import (
     load_settings,
 )
 from fencing_video_research_agent.ports import (
+    ExportFileExistsError,
     PermanentYouTubeGatewayError,
     RepositoryError,
     TransientYouTubeGatewayError,
@@ -76,9 +83,14 @@ annotations_app = typer.Typer(
     help="Review stored videos and edit researcher annotations.",
     no_args_is_help=True,
 )
+export_app = typer.Typer(
+    help="Export local research data to analysis-friendly files.",
+    no_args_is_help=True,
+)
 app.add_typer(videos_app, name="videos")
 app.add_typer(runs_app, name="runs")
 app.add_typer(annotations_app, name="annotations")
+app.add_typer(export_app, name="export")
 
 
 @app.callback()
@@ -355,6 +367,66 @@ def clear_annotation_label(
     _print_annotation_label_clear(result)
 
 
+@export_app.command("videos")
+def export_videos(
+    export_format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            help="Export format: csv or json.",
+        ),
+    ] = "csv",
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="Output file path. Defaults to data/exports/videos.*."),
+    ] = None,
+    overwrite: Annotated[
+        bool,
+        typer.Option("--overwrite", help="Overwrite the output file if it already exists."),
+    ] = False,
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this export."),
+    ] = None,
+) -> None:
+    """Export stored video metadata, annotations, and compact provenance."""
+
+    runtime: ExportVideosRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_export_videos_runtime(settings)
+        result = runtime.use_case.execute(
+            ExportVideosRequest(
+                export_format=export_format,
+                output_path=output,
+                overwrite=overwrite,
+            ),
+        )
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except InvalidExportFormatError as exc:
+        _fail(str(exc), code=2)
+    except ExportFileExistsError as exc:
+        _fail(
+            f"Export file already exists: {_format_path(exc.output_path)}. "
+            "Use --overwrite to replace it.",
+            code=3,
+        )
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: export failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_export_videos_result(result)
+
+
 @videos_app.command("list")
 def list_stored_videos(
     limit: Annotated[
@@ -568,6 +640,12 @@ def _print_annotation_label_clear(result: ClearAnnotationLabelResult) -> None:
     typer.echo(f"YouTube video ID: {result.youtube_video_id}")
 
 
+def _print_export_videos_result(result: ExportVideosResult) -> None:
+    typer.echo(f"Export path: {_format_path(result.output_path)}")
+    typer.echo(f"Row count: {result.row_count}")
+    typer.echo(f"Format: {result.export_format}")
+
+
 def _print_collection_run_list(result: ListCollectionRunsResult) -> None:
     if not result.runs:
         typer.echo("No collection runs found.")
@@ -698,6 +776,10 @@ def _format_parameters(parameters: Mapping[str, object]) -> str:
     if not items:
         return "not available"
     return ", ".join(f"{key}={value}" for key, value in items)
+
+
+def _format_path(path: Path) -> str:
+    return path.as_posix()
 
 
 def _fail(message: str, *, code: int) -> None:
