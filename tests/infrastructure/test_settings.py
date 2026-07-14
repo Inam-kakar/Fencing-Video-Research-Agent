@@ -30,6 +30,18 @@ def test_missing_youtube_api_key_raises_sanitized_error(monkeypatch: pytest.Monk
     assert "api-key" not in str(error.value).lower()
 
 
+def test_read_only_settings_do_not_require_youtube_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("YOUTUBE_API_KEY", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///tmp/read-only.sqlite")
+
+    settings = load_settings(env_file=None, require_youtube_api_key=False)
+
+    assert settings.youtube_api_key.get_secret_value() == ""
+    assert settings.database_url == "sqlite:///tmp/read-only.sqlite"
+
+
 def test_secret_string_representation_does_not_expose_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

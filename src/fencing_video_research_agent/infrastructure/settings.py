@@ -21,7 +21,10 @@ class AppSettings(BaseSettings):
         extra="ignore",
     )
 
-    youtube_api_key: SecretStr = Field(validation_alias="YOUTUBE_API_KEY")
+    youtube_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias="YOUTUBE_API_KEY",
+    )
     database_url: str = Field(
         default="sqlite:///data/fencing_video_research.db",
         validation_alias="DATABASE_URL",
@@ -29,7 +32,11 @@ class AppSettings(BaseSettings):
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
 
 
-def load_settings(*, env_file: str | Path | None = ".env") -> AppSettings:
+def load_settings(
+    *,
+    env_file: str | Path | None = ".env",
+    require_youtube_api_key: bool = True,
+) -> AppSettings:
     """Load settings, raising a sanitized error for missing required values."""
 
     try:
@@ -38,7 +45,7 @@ def load_settings(*, env_file: str | Path | None = ".env") -> AppSettings:
     except ValidationError as exc:
         raise _configuration_error() from exc
 
-    if not settings.youtube_api_key.get_secret_value().strip():
+    if require_youtube_api_key and not settings.youtube_api_key.get_secret_value().strip():
         raise _configuration_error()
     if not settings.database_url.strip():
         raise ConfigurationError("Missing or invalid configuration: DATABASE_URL is required")

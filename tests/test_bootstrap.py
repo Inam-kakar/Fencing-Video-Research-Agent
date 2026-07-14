@@ -72,3 +72,45 @@ def test_build_collect_videos_runtime_wires_infrastructure(
     runtime.close()
 
     assert fake_engine.disposed is True
+
+
+def test_build_video_inspection_runtime_does_not_create_youtube_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    fake_engine = FakeEngine()
+    fake_session_factory = object()
+
+    settings = AppSettings.model_construct(
+        youtube_api_key=SecretStr(""),
+        database_url="sqlite:///tmp/research.sqlite",
+        log_level="INFO",
+    )
+
+    def fake_create_client(api_key: SecretStr) -> object:
+        raise AssertionError("inspection runtime must not create YouTube clients")
+
+    def fake_create_engine(database_url: str) -> FakeEngine:
+        calls.append(f"engine:{database_url}")
+        return fake_engine
+
+    def fake_create_session_factory(engine: FakeEngine) -> object:
+        calls.append(f"session:{engine is fake_engine}")
+        return fake_session_factory
+
+    monkeypatch.setattr(bootstrap, "create_youtube_data_api_client", fake_create_client)
+    monkeypatch.setattr(bootstrap, "create_database_engine", fake_create_engine)
+    monkeypatch.setattr(bootstrap, "create_session_factory", fake_create_session_factory)
+
+    runtime = bootstrap.build_video_inspection_runtime(settings)
+
+    assert calls == [
+        "engine:sqlite:///tmp/research.sqlite",
+        "session:True",
+    ]
+    assert runtime.list_videos is not None
+    assert runtime.show_video is not None
+
+    runtime.close()
+
+    assert fake_engine.disposed is True

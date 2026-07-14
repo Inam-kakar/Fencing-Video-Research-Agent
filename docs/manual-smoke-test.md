@@ -45,6 +45,23 @@ The CLI runs Alembic migrations before collection, so the database should contai
 Phase 1 metadata tables such as `videos`, `search_queries`, `collection_runs`,
 `search_hits`, and `youtube_video_metadata`.
 
+## Inspect Stored Videos
+
+After collection, inspect the stored video records without calling YouTube again:
+
+```powershell
+fencing-video-research-agent videos list
+```
+
+Show one stored video by YouTube video ID:
+
+```powershell
+fencing-video-research-agent videos show <youtube_video_id>
+```
+
+These read-only commands run Alembic migrations before reading, but they do not
+collect new metadata and do not require `YOUTUBE_API_KEY`.
+
 ## Keep The Smoke Test Small
 
 For early project validation, do not raise `--max-results` above `5` unless you have a

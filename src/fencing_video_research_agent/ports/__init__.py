@@ -13,6 +13,11 @@ from fencing_video_research_agent.ports.repositories import (
     VideoRecordId,
     VideoRepository,
 )
+from fencing_video_research_agent.ports.stored_data import (
+    StoredDataReader,
+    StoredVideoDetail,
+    StoredVideoSummary,
+)
 from fencing_video_research_agent.ports.unit_of_work import UnitOfWork
 from fencing_video_research_agent.ports.youtube import (
     PermanentYouTubeGatewayError,
@@ -33,6 +38,9 @@ __all__ = [
     "PermanentYouTubeGatewayError",
     "RepositoryError",
     "SearchQueryRecordId",
+    "StoredDataReader",
+    "StoredVideoDetail",
+    "StoredVideoSummary",
     "TransientYouTubeGatewayError",
     "UnitOfWork",
     "VideoNotFoundError",
