@@ -109,6 +109,16 @@ Stores researcher-owned review fields separately from YouTube metadata.
 Annotations are not stored in `youtube_video_metadata`, so metadata refreshes do not
 overwrite researcher review work.
 
+Milestone 7 adds CLI commands for manual review using this existing table. The
+commands can show annotation fields, set `review_status`, set `notes`, set the single
+`relevance_label`, and clear `relevance_label`.
+
+`review_status` is a workflow status and currently accepts only `unreviewed` and
+`reviewed`. Research relevance or category information belongs in `relevance_label`.
+The current schema stores one `relevance_label` string, not a list of labels. True
+multi-label support is intentionally postponed because it would require a schema
+migration and a separate data-compatibility decision.
+
 ## Provenance Strategy
 
 The schema preserves discovery provenance by storing search terms in `search_queries`,

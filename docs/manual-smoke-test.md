@@ -79,6 +79,42 @@ fencing-video-research-agent runs show <run_id>
 These read-only commands use the local database only. They do not collect new
 metadata, refresh stored metadata, or require `YOUTUBE_API_KEY`.
 
+## Review And Annotate Stored Videos
+
+Manual annotation commands use only the local database. They run Alembic migration
+checks before reading or writing, but they do not call YouTube and do not require
+`YOUTUBE_API_KEY`.
+
+Show the annotation state for one stored video:
+
+```powershell
+fencing-video-research-agent annotations show <youtube_video_id>
+```
+
+Create or update the manual review status:
+
+```powershell
+fencing-video-research-agent annotations set-status <youtube_video_id> reviewed
+```
+
+The only valid review status values are `unreviewed` and `reviewed`.
+
+Create or update researcher notes without echoing long notes back to the terminal:
+
+```powershell
+fencing-video-research-agent annotations set-notes <youtube_video_id> --notes "Good sabre footwork example."
+```
+
+Set or clear the single relevance label stored in `research_annotations.relevance_label`:
+
+```powershell
+fencing-video-research-agent annotations set-label <youtube_video_id> relevant
+fencing-video-research-agent annotations clear-label <youtube_video_id>
+```
+
+The current schema supports one relevance label per video. It does not support true
+multi-label annotation yet.
+
 ## Keep The Smoke Test Small
 
 For early project validation, do not raise `--max-results` above `5` unless you have a

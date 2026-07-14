@@ -8,13 +8,23 @@ from typing import Annotated
 import typer
 
 from fencing_video_research_agent.application import (
+    AnnotationVideoNotFoundError,
+    AnnotationWriteResult,
+    ClearAnnotationLabelRequest,
+    ClearAnnotationLabelResult,
     CollectVideosRequest,
     CollectVideosResult,
+    InvalidReviewStatusError,
     ListCollectionRunsRequest,
     ListCollectionRunsResult,
     ListStoredVideosRequest,
     ListStoredVideosResult,
     MissingYouTubeMetadataError,
+    SetAnnotationLabelRequest,
+    SetAnnotationNotesRequest,
+    SetAnnotationReviewStatusRequest,
+    ShowAnnotationRequest,
+    ShowAnnotationResult,
     ShowCollectionRunRequest,
     ShowCollectionRunResult,
     ShowStoredVideoRequest,
@@ -23,8 +33,10 @@ from fencing_video_research_agent.application import (
     StoredVideoNotFoundError,
 )
 from fencing_video_research_agent.bootstrap import (
+    AnnotationRuntime,
     CollectVideosRuntime,
     VideoInspectionRuntime,
+    build_annotation_runtime,
     build_collect_videos_runtime,
     build_video_inspection_runtime,
 )
@@ -60,8 +72,13 @@ runs_app = typer.Typer(
     help="Inspect collection runs stored in the local research database.",
     no_args_is_help=True,
 )
+annotations_app = typer.Typer(
+    help="Review stored videos and edit researcher annotations.",
+    no_args_is_help=True,
+)
 app.add_typer(videos_app, name="videos")
 app.add_typer(runs_app, name="runs")
+app.add_typer(annotations_app, name="annotations")
 
 
 @app.callback()
@@ -138,6 +155,204 @@ def collect(
             runtime.close()
 
     _print_result(result)
+
+
+@annotations_app.command("show")
+def show_annotation(
+    youtube_video_id: Annotated[str, typer.Argument(help="Stored YouTube video ID.")],
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this annotation read."),
+    ] = None,
+) -> None:
+    """Show manual researcher annotation fields for a stored video."""
+
+    runtime: AnnotationRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_annotation_runtime(settings)
+        result = runtime.show_annotation.execute(
+            ShowAnnotationRequest(youtube_video_id=youtube_video_id),
+        )
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except AnnotationVideoNotFoundError as exc:
+        _fail(f"Stored video not found: {exc.youtube_video_id}", code=3)
+    except ValueError as exc:
+        _fail(f"Invalid annotation input: {exc}", code=2)
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: annotation inspection failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_annotation_detail(result)
+
+
+@annotations_app.command("set-status")
+def set_annotation_status(
+    youtube_video_id: Annotated[str, typer.Argument(help="Stored YouTube video ID.")],
+    status: Annotated[str, typer.Argument(help="Review status: unreviewed or reviewed.")],
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this annotation write."),
+    ] = None,
+) -> None:
+    """Set a stored video's manual review status."""
+
+    runtime: AnnotationRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_annotation_runtime(settings)
+        result = runtime.set_review_status.execute(
+            SetAnnotationReviewStatusRequest(
+                youtube_video_id=youtube_video_id,
+                status=status,
+            ),
+        )
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except AnnotationVideoNotFoundError as exc:
+        _fail(f"Stored video not found: {exc.youtube_video_id}", code=3)
+    except InvalidReviewStatusError as exc:
+        _fail(str(exc), code=2)
+    except ValueError as exc:
+        _fail(f"Invalid annotation input: {exc}", code=2)
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: annotation update failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_annotation_status_update(result)
+
+
+@annotations_app.command("set-notes")
+def set_annotation_notes(
+    youtube_video_id: Annotated[str, typer.Argument(help="Stored YouTube video ID.")],
+    notes: Annotated[str, typer.Option("--notes", help="Researcher notes to store.")],
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this annotation write."),
+    ] = None,
+) -> None:
+    """Set manual notes for a stored video."""
+
+    runtime: AnnotationRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_annotation_runtime(settings)
+        result = runtime.set_notes.execute(
+            SetAnnotationNotesRequest(youtube_video_id=youtube_video_id, notes=notes),
+        )
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except AnnotationVideoNotFoundError as exc:
+        _fail(f"Stored video not found: {exc.youtube_video_id}", code=3)
+    except ValueError as exc:
+        _fail(f"Invalid annotation input: {exc}", code=2)
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: annotation update failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_annotation_notes_update(result)
+
+
+@annotations_app.command("set-label")
+def set_annotation_label(
+    youtube_video_id: Annotated[str, typer.Argument(help="Stored YouTube video ID.")],
+    label: Annotated[str, typer.Argument(help="Single relevance label to store.")],
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this annotation write."),
+    ] = None,
+) -> None:
+    """Set the single relevance label for a stored video."""
+
+    runtime: AnnotationRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_annotation_runtime(settings)
+        result = runtime.set_label.execute(
+            SetAnnotationLabelRequest(youtube_video_id=youtube_video_id, label=label),
+        )
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except AnnotationVideoNotFoundError as exc:
+        _fail(f"Stored video not found: {exc.youtube_video_id}", code=3)
+    except ValueError as exc:
+        _fail(f"Invalid annotation input: {exc}", code=2)
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: annotation update failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_annotation_label_update(result)
+
+
+@annotations_app.command("clear-label")
+def clear_annotation_label(
+    youtube_video_id: Annotated[str, typer.Argument(help="Stored YouTube video ID.")],
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this annotation write."),
+    ] = None,
+) -> None:
+    """Clear the single relevance label for a stored video."""
+
+    runtime: AnnotationRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_annotation_runtime(settings)
+        result = runtime.clear_label.execute(
+            ClearAnnotationLabelRequest(youtube_video_id=youtube_video_id),
+        )
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except AnnotationVideoNotFoundError as exc:
+        _fail(f"Stored video not found: {exc.youtube_video_id}", code=3)
+    except ValueError as exc:
+        _fail(f"Invalid annotation input: {exc}", code=2)
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: annotation update failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_annotation_label_clear(result)
 
 
 @videos_app.command("list")
@@ -307,6 +522,50 @@ def _search_parameters(
     if region_code is not None:
         parameters["regionCode"] = region_code
     return parameters
+
+
+def _print_annotation_detail(result: ShowAnnotationResult) -> None:
+    typer.echo(f"YouTube video ID: {result.youtube_video_id}")
+    annotation = result.annotation
+    if annotation is None:
+        typer.echo("No annotation recorded yet.")
+        return
+
+    typer.echo(f"Review status: {annotation.review_status.value}")
+    typer.echo(f"Notes: {_format_optional(annotation.notes)}")
+    typer.echo(f"Relevance label: {_format_optional(annotation.relevance_label)}")
+    typer.echo(f"Competition name: {_format_optional(annotation.competition_name)}")
+    typer.echo(f"Fencer names: {_format_tags(annotation.fencer_names)}")
+    typer.echo(f"Weapon category: {_format_optional(annotation.weapon_category)}")
+    typer.echo(f"Event notes: {_format_optional(annotation.event_notes)}")
+    typer.echo(f"Updated at: {annotation.updated_at}")
+
+
+def _print_annotation_status_update(result: AnnotationWriteResult) -> None:
+    typer.echo("Annotation review status updated.")
+    typer.echo(f"YouTube video ID: {result.annotation.youtube_video_id}")
+    typer.echo(f"Review status: {result.annotation.review_status.value}")
+
+
+def _print_annotation_notes_update(result: AnnotationWriteResult) -> None:
+    typer.echo("Annotation notes updated.")
+    typer.echo(f"YouTube video ID: {result.annotation.youtube_video_id}")
+
+
+def _print_annotation_label_update(result: AnnotationWriteResult) -> None:
+    typer.echo("Annotation relevance label updated.")
+    typer.echo(f"YouTube video ID: {result.annotation.youtube_video_id}")
+    typer.echo(f"Relevance label: {_format_optional(result.annotation.relevance_label)}")
+
+
+def _print_annotation_label_clear(result: ClearAnnotationLabelResult) -> None:
+    if result.changed:
+        typer.echo("Annotation relevance label cleared.")
+    elif result.annotation is None:
+        typer.echo("No annotation recorded yet; relevance label is already clear.")
+    else:
+        typer.echo("Annotation relevance label was already clear.")
+    typer.echo(f"YouTube video ID: {result.youtube_video_id}")
 
 
 def _print_collection_run_list(result: ListCollectionRunsResult) -> None:

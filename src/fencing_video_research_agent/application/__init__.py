@@ -1,5 +1,22 @@
 """Application-layer use cases for fencing-video research workflows."""
 
+from fencing_video_research_agent.application.annotate_videos import (
+    AnnotationVideoNotFoundError,
+    AnnotationWriteResult,
+    ClearAnnotationLabelRequest,
+    ClearAnnotationLabelResult,
+    ClearAnnotationLabelUseCase,
+    InvalidReviewStatusError,
+    SetAnnotationLabelRequest,
+    SetAnnotationLabelUseCase,
+    SetAnnotationNotesRequest,
+    SetAnnotationNotesUseCase,
+    SetAnnotationReviewStatusRequest,
+    SetAnnotationReviewStatusUseCase,
+    ShowAnnotationRequest,
+    ShowAnnotationResult,
+    ShowAnnotationUseCase,
+)
 from fencing_video_research_agent.application.collect_videos import (
     CollectVideosRequest,
     CollectVideosResult,
@@ -24,9 +41,15 @@ from fencing_video_research_agent.application.inspect_storage import (
 )
 
 __all__ = [
+    "AnnotationVideoNotFoundError",
+    "AnnotationWriteResult",
+    "ClearAnnotationLabelRequest",
+    "ClearAnnotationLabelResult",
+    "ClearAnnotationLabelUseCase",
     "CollectVideosRequest",
     "CollectVideosResult",
     "CollectVideosUseCase",
+    "InvalidReviewStatusError",
     "ListCollectionRunsRequest",
     "ListCollectionRunsResult",
     "ListCollectionRunsUseCase",
@@ -34,6 +57,15 @@ __all__ = [
     "ListStoredVideosResult",
     "ListStoredVideosUseCase",
     "MissingYouTubeMetadataError",
+    "SetAnnotationLabelRequest",
+    "SetAnnotationLabelUseCase",
+    "SetAnnotationNotesRequest",
+    "SetAnnotationNotesUseCase",
+    "SetAnnotationReviewStatusRequest",
+    "SetAnnotationReviewStatusUseCase",
+    "ShowAnnotationRequest",
+    "ShowAnnotationResult",
+    "ShowAnnotationUseCase",
     "ShowCollectionRunRequest",
     "ShowCollectionRunResult",
     "ShowCollectionRunUseCase",

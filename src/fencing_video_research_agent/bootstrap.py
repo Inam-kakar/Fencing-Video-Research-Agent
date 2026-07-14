@@ -8,9 +8,14 @@ from dataclasses import dataclass
 from sqlalchemy.engine import Engine
 
 from fencing_video_research_agent.application import (
+    ClearAnnotationLabelUseCase,
     CollectVideosUseCase,
     ListCollectionRunsUseCase,
     ListStoredVideosUseCase,
+    SetAnnotationLabelUseCase,
+    SetAnnotationNotesUseCase,
+    SetAnnotationReviewStatusUseCase,
+    ShowAnnotationUseCase,
     ShowCollectionRunUseCase,
     ShowStoredVideoUseCase,
 )
@@ -64,6 +69,23 @@ class VideoInspectionRuntime:
         self.engine.dispose()
 
 
+@dataclass(frozen=True, slots=True)
+class AnnotationRuntime:
+    """Runtime resources for manual researcher annotation workflows."""
+
+    show_annotation: ShowAnnotationUseCase
+    set_review_status: SetAnnotationReviewStatusUseCase
+    set_notes: SetAnnotationNotesUseCase
+    set_label: SetAnnotationLabelUseCase
+    clear_label: ClearAnnotationLabelUseCase
+    engine: Engine
+
+    def close(self) -> None:
+        """Dispose of database resources held by the runtime."""
+
+        self.engine.dispose()
+
+
 def build_collect_videos_runtime(settings: AppSettings) -> CollectVideosRuntime:
     """Wire the collect-videos use case to concrete infrastructure."""
 
@@ -86,6 +108,38 @@ def build_collect_videos_runtime(settings: AppSettings) -> CollectVideosRuntime:
         clock=clock,
     )
     return CollectVideosRuntime(use_case=use_case, engine=engine)
+
+
+def build_annotation_runtime(settings: AppSettings) -> AnnotationRuntime:
+    """Wire manual annotation use cases without constructing YouTube clients."""
+
+    clock = SystemClock()
+    engine = create_database_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+
+    def unit_of_work_factory() -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(session_factory)
+
+    return AnnotationRuntime(
+        show_annotation=ShowAnnotationUseCase(unit_of_work_factory=unit_of_work_factory),
+        set_review_status=SetAnnotationReviewStatusUseCase(
+            unit_of_work_factory=unit_of_work_factory,
+            clock=clock,
+        ),
+        set_notes=SetAnnotationNotesUseCase(
+            unit_of_work_factory=unit_of_work_factory,
+            clock=clock,
+        ),
+        set_label=SetAnnotationLabelUseCase(
+            unit_of_work_factory=unit_of_work_factory,
+            clock=clock,
+        ),
+        clear_label=ClearAnnotationLabelUseCase(
+            unit_of_work_factory=unit_of_work_factory,
+            clock=clock,
+        ),
+        engine=engine,
+    )
 
 
 def build_video_inspection_runtime(settings: AppSettings) -> VideoInspectionRuntime:
