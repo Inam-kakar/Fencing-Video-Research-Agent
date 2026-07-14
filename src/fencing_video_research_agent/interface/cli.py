@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated
 
 import typer
@@ -9,11 +10,16 @@ import typer
 from fencing_video_research_agent.application import (
     CollectVideosRequest,
     CollectVideosResult,
+    ListCollectionRunsRequest,
+    ListCollectionRunsResult,
     ListStoredVideosRequest,
     ListStoredVideosResult,
     MissingYouTubeMetadataError,
+    ShowCollectionRunRequest,
+    ShowCollectionRunResult,
     ShowStoredVideoRequest,
     ShowStoredVideoResult,
+    StoredCollectionRunNotFoundError,
     StoredVideoNotFoundError,
 )
 from fencing_video_research_agent.bootstrap import (
@@ -38,6 +44,7 @@ from fencing_video_research_agent.ports import (
 
 MAX_COLLECT_RESULTS = 50
 MAX_VIDEO_LIST_RESULTS = 100
+MAX_RUN_LIST_RESULTS = 100
 DESCRIPTION_PREVIEW_LENGTH = 500
 
 app = typer.Typer(
@@ -49,7 +56,12 @@ videos_app = typer.Typer(
     help="Inspect videos stored in the local research database.",
     no_args_is_help=True,
 )
+runs_app = typer.Typer(
+    help="Inspect collection runs stored in the local research database.",
+    no_args_is_help=True,
+)
 app.add_typer(videos_app, name="videos")
+app.add_typer(runs_app, name="runs")
 
 
 @app.callback()
@@ -204,6 +216,80 @@ def show_stored_video(
     _print_video_detail(result)
 
 
+@runs_app.command("list")
+def list_collection_runs(
+    limit: Annotated[
+        int,
+        typer.Option(
+            "--limit",
+            min=1,
+            max=MAX_RUN_LIST_RESULTS,
+            help="Maximum collection runs to show.",
+        ),
+    ] = 20,
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this read."),
+    ] = None,
+) -> None:
+    """List collection runs already stored in the local database."""
+
+    runtime: VideoInspectionRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_video_inspection_runtime(settings)
+        result = runtime.list_collection_runs.execute(ListCollectionRunsRequest(limit=limit))
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: collection-run inspection failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_collection_run_list(result)
+
+
+@runs_app.command("show")
+def show_collection_run(
+    run_id: Annotated[int, typer.Argument(min=1, help="Stored collection run ID.")],
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this read."),
+    ] = None,
+) -> None:
+    """Show details for one collection run already stored in the local database."""
+
+    runtime: VideoInspectionRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_video_inspection_runtime(settings)
+        result = runtime.show_collection_run.execute(ShowCollectionRunRequest(run_id=run_id))
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except StoredCollectionRunNotFoundError as exc:
+        _fail(f"Collection run not found: {exc.run_id}", code=3)
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: collection-run inspection failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_collection_run_detail(result)
+
+
 def _search_parameters(
     *,
     order: str | None,
@@ -221,6 +307,49 @@ def _search_parameters(
     if region_code is not None:
         parameters["regionCode"] = region_code
     return parameters
+
+
+def _print_collection_run_list(result: ListCollectionRunsResult) -> None:
+    if not result.runs:
+        typer.echo("No collection runs found.")
+        return
+
+    typer.echo("Collection runs:")
+    for run in result.runs:
+        typer.echo(
+            " | ".join(
+                (
+                    f"Run ID: {int(run.run_id)}",
+                    f"Query: {run.query_text}",
+                    f"Status: {run.status}",
+                    f"Started: {_format_optional(run.started_at)}",
+                    f"Completed: {_format_optional(run.completed_at)}",
+                    f"Hits: {run.hit_count}",
+                )
+            )
+        )
+
+
+def _print_collection_run_detail(result: ShowCollectionRunResult) -> None:
+    run = result.run
+    typer.echo(f"Run ID: {int(run.run_id)}")
+    typer.echo(f"Query: {run.query_text}")
+    typer.echo(f"Query parameters: {_format_parameters(run.query_parameters)}")
+    typer.echo(f"Status: {run.status}")
+    typer.echo(f"Started: {_format_optional(run.started_at)}")
+    typer.echo(f"Completed: {_format_optional(run.completed_at)}")
+    typer.echo(f"Hit count: {run.hit_count}")
+    if not run.hits:
+        typer.echo("Returned videos: none")
+        return
+
+    typer.echo("Returned videos:")
+    for hit in run.hits:
+        typer.echo("")
+        typer.echo(f"Rank: {_format_optional(hit.rank)}")
+        typer.echo(f"  YouTube video ID: {hit.youtube_video_id}")
+        typer.echo(f"  Title: {hit.title}")
+        typer.echo(f"  Channel: {hit.channel_title}")
 
 
 def _print_video_list(result: ListStoredVideosResult) -> None:
@@ -303,6 +432,13 @@ def _format_tags(tags: tuple[str, ...]) -> str:
     if not tags:
         return "not available"
     return ", ".join(tags)
+
+
+def _format_parameters(parameters: Mapping[str, object]) -> str:
+    items = sorted(parameters.items())
+    if not items:
+        return "not available"
+    return ", ".join(f"{key}={value}" for key, value in items)
 
 
 def _fail(message: str, *, code: int) -> None:

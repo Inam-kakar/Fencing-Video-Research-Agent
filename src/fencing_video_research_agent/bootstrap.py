@@ -9,7 +9,9 @@ from sqlalchemy.engine import Engine
 
 from fencing_video_research_agent.application import (
     CollectVideosUseCase,
+    ListCollectionRunsUseCase,
     ListStoredVideosUseCase,
+    ShowCollectionRunUseCase,
     ShowStoredVideoUseCase,
 )
 from fencing_video_research_agent.infrastructure.clock import SystemClock
@@ -48,10 +50,12 @@ class CollectVideosRuntime:
 
 @dataclass(frozen=True, slots=True)
 class VideoInspectionRuntime:
-    """Runtime resources for read-only stored-video inspection."""
+    """Runtime resources for read-only stored-data inspection."""
 
     list_videos: ListStoredVideosUseCase
     show_video: ShowStoredVideoUseCase
+    list_collection_runs: ListCollectionRunsUseCase
+    show_collection_run: ShowCollectionRunUseCase
     engine: Engine
 
     def close(self) -> None:
@@ -93,5 +97,7 @@ def build_video_inspection_runtime(settings: AppSettings) -> VideoInspectionRunt
     return VideoInspectionRuntime(
         list_videos=ListStoredVideosUseCase(stored_data_reader=stored_data_reader),
         show_video=ShowStoredVideoUseCase(stored_data_reader=stored_data_reader),
+        list_collection_runs=ListCollectionRunsUseCase(stored_data_reader=stored_data_reader),
+        show_collection_run=ShowCollectionRunUseCase(stored_data_reader=stored_data_reader),
         engine=engine,
     )

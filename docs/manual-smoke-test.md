@@ -62,6 +62,23 @@ fencing-video-research-agent videos show <youtube_video_id>
 These read-only commands run Alembic migrations before reading, but they do not
 collect new metadata and do not require `YOUTUBE_API_KEY`.
 
+## Inspect Collection Runs
+
+Review previous collection runs without calling YouTube again:
+
+```powershell
+fencing-video-research-agent runs list
+```
+
+Show the query, parameters, timing, and returned videos for one stored run:
+
+```powershell
+fencing-video-research-agent runs show <run_id>
+```
+
+These read-only commands use the local database only. They do not collect new
+metadata, refresh stored metadata, or require `YOUTUBE_API_KEY`.
+
 ## Keep The Smoke Test Small
 
 For early project validation, do not raise `--max-results` above `5` unless you have a

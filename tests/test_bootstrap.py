@@ -110,6 +110,8 @@ def test_build_video_inspection_runtime_does_not_create_youtube_client(
     ]
     assert runtime.list_videos is not None
     assert runtime.show_video is not None
+    assert runtime.list_collection_runs is not None
+    assert runtime.show_collection_run is not None
 
     runtime.close()
 

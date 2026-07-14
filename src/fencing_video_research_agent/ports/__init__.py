@@ -14,6 +14,9 @@ from fencing_video_research_agent.ports.repositories import (
     VideoRepository,
 )
 from fencing_video_research_agent.ports.stored_data import (
+    StoredCollectionRunDetail,
+    StoredCollectionRunHit,
+    StoredCollectionRunSummary,
     StoredDataReader,
     StoredVideoDetail,
     StoredVideoSummary,
@@ -38,6 +41,9 @@ __all__ = [
     "PermanentYouTubeGatewayError",
     "RepositoryError",
     "SearchQueryRecordId",
+    "StoredCollectionRunDetail",
+    "StoredCollectionRunHit",
+    "StoredCollectionRunSummary",
     "StoredDataReader",
     "StoredVideoDetail",
     "StoredVideoSummary",
