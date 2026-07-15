@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 
 type LayoutProps = {
   children: ReactNode;
+  navigation?: ReactNode;
 };
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, navigation }: LayoutProps) {
   return (
     <Stack minHeight="100vh" spacing={0}>
       <AppBar position="static" elevation={0}>
@@ -16,7 +17,10 @@ export function Layout({ children }: LayoutProps) {
         </Toolbar>
       </AppBar>
       <Container component="main" maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
-        {children}
+        <Stack spacing={4}>
+          {navigation}
+          {children}
+        </Stack>
       </Container>
     </Stack>
   );

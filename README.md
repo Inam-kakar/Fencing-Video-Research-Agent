@@ -8,8 +8,8 @@ through the official YouTube Data API. It stores local research data in SQLite,
 preserves search provenance, supports manual annotation, and exports video-level
 and search-hit-level CSV/JSON datasets for later analysis and provenance auditing.
 
-Implementation state: through Milestone 11C, including a read-only FastAPI backend
-API and the first React/Vite/MUI frontend skeleton.
+Implementation state: through Milestone 11D, including a read-only FastAPI backend
+API and React/Vite/MUI frontend browsing tables.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ API and the first React/Vite/MUI frontend skeleton.
 - [Quick Start Demo](#quick-start-demo)
 - [CLI Commands](#cli-commands)
 - [Read-Only HTTP API](#read-only-http-api)
-- [Frontend Dashboard Skeleton](#frontend-dashboard-skeleton)
+- [Frontend Dashboard](#frontend-dashboard)
 - [Data Model Summary](#data-model-summary)
 - [Research Workflow](#research-workflow)
 - [Export Workflow](#export-workflow)
@@ -64,7 +64,7 @@ video-AI experiments on top of a documented data foundation.
 | Export video-level CSV/JSON datasets | `export videos --format csv\|json` | Implemented |
 | Export search-hit provenance CSV/JSON datasets | `export search-hits --format csv\|json` | Implemented |
 | Serve read-only local database data over HTTP/JSON | FastAPI endpoints under `/api` | Implemented |
-| Display dashboard summary in browser | React, TypeScript, Vite, MUI | Skeleton implemented |
+| Browse dashboard data in browser | React, TypeScript, Vite, MUI | Read-only tables implemented |
 | Run offline automated tests | `pytest`, Ruff, mypy | Implemented |
 
 ## What This Project Does Not Do Yet
@@ -75,7 +75,7 @@ video-AI experiments on top of a documented data foundation.
 | Computer vision | Not implemented |
 | Scoring detection | Not implemented |
 | Event detection | Not implemented |
-| Full frontend dashboard | Not implemented |
+| Frontend editing workflows | Not implemented |
 | Model training | Not implemented |
 | PostgreSQL deployment | Not implemented yet |
 | Scientific conclusions from the smoke test | Not claimed |
@@ -278,11 +278,11 @@ The API is intentionally read-only. Annotation editing, collection, and export r
 CLI workflows for now. Local-development CORS allows the Vite dev server at
 `http://localhost:5173` to call the API with read-only `GET` requests.
 
-## Frontend Dashboard Skeleton
+## Frontend Dashboard
 
-Milestone 11C adds the first React, TypeScript, Vite, and MUI frontend skeleton. It
-calls only the read-only FastAPI API and displays API health plus summary metric
-cards.
+The React, TypeScript, Vite, and MUI frontend calls only the read-only FastAPI API.
+It displays API health, summary metric cards, stored videos, collection runs, and
+search-hit provenance tables.
 
 Install frontend dependencies:
 
@@ -311,8 +311,8 @@ VITE_API_BASE_URL=http://localhost:8000
 ```
 
 No YouTube API key belongs in frontend configuration. The frontend must not read the
-backend `.env` file, connect to SQLite, call YouTube, or run export/annotation
-workflows directly.
+backend `.env` file, connect to SQLite, call YouTube, run exports, edit annotations,
+or trigger collection workflows directly.
 
 ## Data Model Summary
 
@@ -441,17 +441,17 @@ The boundary scan should return no matches for the application and domain layers
 
 | Stage | Future Work |
 | --- | --- |
-| Current frontend milestone | React/Vite/MUI skeleton consuming the read-only API |
+| Current frontend milestone | React/Vite/MUI read-only browsing tables |
 | Near term | Richer annotation protocol if the research method needs it |
 | Medium term | Larger controlled collection protocol for sabre-related searches |
-| Medium term | Videos, runs, and search-hit tables in the dashboard |
+| Medium term | Richer dashboard details and researcher review views after API decisions |
 | Medium term | PostgreSQL as a later optional persistence target |
 | Long term | Computer vision or event-detection experiments on top of curated metadata |
 
 ## Project Status
 
 The project is a Phase 1 backend and research-data foundation implemented through
-Milestone 11C. It is suitable for continued research-software development, professor
+Milestone 11D. It is suitable for continued research-software development, professor
 review, future dataset-building work, and incremental dashboard development.
 
 It is not yet a full AI or video-analysis system. It does not detect fencing actions,

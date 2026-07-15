@@ -5,6 +5,7 @@ import { getHealth, getSummary } from "../api/client";
 import type { HealthResponse, SummaryResponse } from "../api/types";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
+import { PageHeader } from "../components/PageHeader";
 import { SummaryCard } from "../components/SummaryCard";
 
 type DashboardState =
@@ -84,14 +85,10 @@ export function DashboardPage() {
           label={`API status: ${dashboardState.health.status}`}
           sx={{ alignSelf: "flex-start", fontWeight: 700 }}
         />
-        <Stack spacing={1}>
-          <Typography component="h1" variant="h1">
-            Research Dashboard Overview
-          </Typography>
-          <Typography color="text.secondary" maxWidth="760px" variant="body1">
-            Local summary counts from the read-only FastAPI backend.
-          </Typography>
-        </Stack>
+        <PageHeader
+          description="Local summary counts from the read-only FastAPI backend."
+          title="Research Dashboard Overview"
+        />
       </Stack>
 
       <Stack direction="row" flexWrap="wrap" gap={2}>

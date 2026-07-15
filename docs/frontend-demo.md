@@ -1,7 +1,7 @@
 # Frontend Demo
 
-This document describes the local demo workflow for the first React, TypeScript,
-Vite, and MUI frontend skeleton.
+This document describes the local demo workflow for the React, TypeScript, Vite, and
+MUI frontend dashboard.
 
 The frontend reads only from the local read-only FastAPI API. It does not call
 YouTube, does not connect to SQLite directly, and must not receive `YOUTUBE_API_KEY`.
@@ -50,8 +50,14 @@ Open the Vite local URL shown in the terminal. Confirm that:
 - The app shell and dashboard title appear.
 - The API health chip appears.
 - Summary metric cards appear.
-- A note explains that videos, runs, and search-hit tables are planned for later
-  frontend milestones.
+- The Dashboard tab loads.
+- The Videos tab loads a read-only stored-video table or a readable empty state.
+- The Collection Runs tab loads a read-only collection-run table or a readable empty
+  state.
+- The Search Hits tab loads a read-only provenance table or a readable empty state.
+- API errors show safe messages.
+- YouTube links are shown as links when video URLs are available.
+- No annotation editing controls, export buttons, or collection UI are present.
 
 ## Configuration
 
