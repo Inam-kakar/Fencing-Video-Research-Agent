@@ -4,9 +4,9 @@ Repository name: `Fencing-Video-Research-Agent`
 
 Current phase: Phase 1 backend/research data foundation
 
-Implementation state: Through Milestone 8
+Implementation state: Through Milestone 10A
 
-Date generated: 2026-07-14
+Date generated: 2026-07-15
 
 Author: Inam Ullah
 
@@ -17,8 +17,10 @@ organizing, reviewing, and exporting public fencing-video metadata in a reproduc
 way. The current implementation focuses on sabre-related YouTube metadata collection
 through the official YouTube Data API, local relational storage with SQLite,
 controlled schema evolution with Alembic, manual command-line annotation, read-only
-inspection of stored videos and collection runs, and pandas-backed CSV/JSON export of
-stored video records. It is a backend and research-data foundation. It does not yet
+inspection of stored videos and collection runs, professional README/demo
+documentation, pandas-backed CSV/JSON export of stored video records, and
+search-hit/provenance CSV/JSON export. It is a backend and research-data foundation.
+It does not yet
 perform video downloading, computer vision, scoring detection, event detection,
 frontend visualization, PostgreSQL deployment, or model training.
 
@@ -37,13 +39,16 @@ and fetch metadata. It stores video identities, latest YouTube metadata, search
 queries, collection runs, search hits, and separate research annotation fields in a
 local SQLite database managed by SQLAlchemy and Alembic. The command-line interface
 currently supports controlled collection, read-only video inspection, read-only
-collection-run inspection, manual annotation updates, and video-level CSV/JSON export.
-Automated tests are offline and deterministic, while real YouTube API use is limited
-to manual smoke testing. A real smoke test with the query
+collection-run inspection, manual annotation updates, video-level CSV/JSON export,
+and search-hit/provenance CSV/JSON export. Automated tests are offline and
+deterministic, while real YouTube API use is limited to manual smoke testing. A real
+smoke test with the query
 `sabre fencing final` and `--max-results 5` succeeded, creating a local SQLite
 database with five stored videos, one search query, one collection run, and five
-search hits. This validates the current backend workflow, but it is not yet a large
-scientific dataset or an AI video-analysis system.
+search hits. Later local export verification produced video-level files and
+search-hit provenance files from that same small database. This validates the current
+backend workflow, but it is not yet a large scientific dataset or an AI
+video-analysis system.
 
 ## Motivation and Problem Statement
 
@@ -76,9 +81,10 @@ The Phase 1 objectives are:
 - Make the collection process reproducible and auditable.
 - Provide local command-line inspection of stored videos and collection runs.
 - Support manual review annotations that remain separate from YouTube metadata.
-- Export stored video records for later analysis and reporting.
-- Prepare a foundation for later richer annotation, provenance export, analysis, and
-  video-AI research.
+- Export stored video records and search-hit provenance records for later analysis
+  and reporting.
+- Prepare a foundation for later richer annotation, quality checks, controlled
+  collection protocols, and video-AI research.
 
 The Phase 1 non-objectives are equally important:
 
@@ -91,9 +97,9 @@ The Phase 1 non-objectives are equally important:
 - No PostgreSQL deployment yet.
 - No conference or scientific conclusion is claimed from the current small smoke test.
 
-## Scope Through Milestone 8
+## Scope Through Milestone 10A
 
-Through Milestone 8, the repository implements a backend data foundation with:
+Through Milestone 10A, the repository implements a backend data foundation with:
 
 - Project setup as a Python 3.12 package.
 - `AGENTS.md` engineering rules for architecture, testing, security, and scope.
@@ -112,12 +118,16 @@ Through Milestone 8, the repository implements a backend data foundation with:
 - Manual annotation commands for showing annotations, setting review status, setting
   notes, setting one relevance label, and clearing that label.
 - A pandas-backed `export videos` command for CSV and JSON output.
+- A pandas-backed `export search-hits` command for search-hit/provenance CSV and
+  JSON output.
+- A professional README/demo guide that explains setup, architecture, commands,
+  validation, documentation links, roadmap, and project status.
 - Offline automated tests, linting, formatting checks, type checks, and architecture
   boundary scans.
 
-The project does not yet implement metadata snapshot history, search-hit/provenance
-exports, video downloading, computer vision, scoring detection, event detection, web
-UI, cloud deployment, PostgreSQL operation, or a large scientific dataset.
+The project does not yet implement metadata snapshot history, video downloading,
+computer vision, scoring detection, event detection, web UI, cloud deployment,
+PostgreSQL operation, or a large scientific dataset.
 
 ## Methodology
 
@@ -175,8 +185,9 @@ The application layer contains use cases. The main collection use case coordinat
 YouTube search, metadata enrichment, deduplication, collection-run creation, video
 storage, search-hit recording, and Unit of Work commit. The inspection use cases list
 or show stored videos and collection runs through read-only ports. Annotation use
-cases update researcher-owned fields through repository ports. The export use case
-coordinates video-level export records and file writing through export ports.
+cases update researcher-owned fields through repository ports. The export use cases
+coordinate video-level export records, search-hit provenance export records, and file
+writing through export ports.
 Application code does not construct SQLAlchemy sessions, call Google clients directly,
 use pandas directly, or parse raw Google API dictionaries.
 
@@ -186,8 +197,8 @@ Ports define project-owned boundaries. The YouTube gateway port exposes
 `YouTubeSearchRequest`, `YouTubeSearchResult`, project-owned metadata, and typed
 gateway errors. Repository and Unit of Work ports define persistence boundaries for
 writes. The stored-data reader port defines read-only projections for local
-inspection. Export ports define a video export reader and writer boundary so pandas
-stays in infrastructure.
+inspection. Export ports define video export and search-hit provenance export reader
+and writer boundaries so pandas stays in infrastructure.
 
 ### Infrastructure
 
@@ -200,7 +211,8 @@ Infrastructure contains concrete technical implementations:
 - SQLite engine/session helpers.
 - Alembic migration runner.
 - Pydantic settings.
-- Pandas-backed CSV and JSON export writer.
+- Pandas-backed CSV and JSON export behavior for video-level and search-hit
+  provenance datasets.
 - System clock.
 
 SQLAlchemy stays in infrastructure so the domain and application layers remain
@@ -356,7 +368,16 @@ annotation fields.
 
 ## Pandas-Backed Export Workflow
 
-Milestone 8 added a video-level export command:
+The project now supports two local export workflows. Both read only from the local
+database, do not call YouTube, do not require `YOUTUBE_API_KEY`, and should not print
+full exported records to the terminal.
+
+| Command | Dataset Shape | Main Question Answered | Default Outputs |
+| --- | --- | --- | --- |
+| `export videos` | One row per stored video | What videos are stored? | `data/exports/videos.csv`, `data/exports/videos.json` |
+| `export search-hits` | One row per discovery/search result event | How were those videos discovered? | `data/exports/search_hits.csv`, `data/exports/search_hits.json` |
+
+Milestone 8 added the video-level export command:
 
 ```powershell
 fencing-video-research-agent export videos
@@ -383,10 +404,37 @@ manual annotation fields, and compact provenance summary fields. CSV and JSON ar
 first implemented research export formats. The export is pandas-backed in
 infrastructure, while the application layer uses project-owned export ports.
 
+Milestone 10A added the search-hit provenance export command:
+
+```powershell
+fencing-video-research-agent export search-hits
+```
+
+It supports the same core options:
+
+```text
+--format csv|json
+--output PATH
+--overwrite
+--database-url
+```
+
+The default output paths are:
+
+```text
+data/exports/search_hits.csv
+data/exports/search_hits.json
+```
+
+This export writes one row per search hit. Each row includes query/run provenance,
+search-hit rank and discovery time, video identity, selected YouTube metadata,
+`review_status`, and `relevance_label`. It does not include long annotation notes
+because the purpose of this dataset is provenance and auditability rather than full
+review text. It complements the video-level export by preserving repeated discovery
+events rather than collapsing everything to one row per video.
+
 Generated export files under `data/exports/` are ignored by Git except for the
-directory placeholder. Export commands read the local database only. They do not call
-YouTube, do not require `YOUTUBE_API_KEY`, and should not print full exported records
-to the terminal.
+directory placeholder.
 
 ## Key Engineering Decisions, Alternatives, and Lessons Learned
 
@@ -403,7 +451,9 @@ to the terminal.
 | CLI first instead of frontend first | Build Streamlit or web UI immediately | Use Typer CLI as first interface | CLI proves backend workflow without UI complexity | Less accessible to non-technical users | Stable backend behavior should come before public interface |
 | Read-only inspection before export/frontend | Jump to CSV export or UI | Add `videos` and `runs` inspection commands | Stored data and provenance should be verified before export | Output is plain and not yet demo-polished | Inspection is necessary before analysis/export |
 | Single-label annotation before richer labeling | Add multi-label schema or delimiter strings immediately | Use existing `relevance_label` as one label | Avoids ambiguous string encoding and avoids a premature schema migration | Less expressive annotation for now | Annotation structure should evolve through schema decisions |
-| Pandas-backed video export | Put pandas in application code or export every provenance row immediately | Keep pandas in infrastructure and export one row per stored video first | Provides useful research files while preserving architecture boundaries | Search-hit-level export is still future work | Export contracts should be small and explicit |
+| Pandas-backed exports | Put pandas in application code | Keep pandas in infrastructure and expose export behavior through ports | Provides useful research files while preserving architecture boundaries | Export shapes must be kept explicit and documented | Export contracts are part of the research data design |
+| Separate search-hit provenance export | Fold search-hit data into the video-level export only | Add `export search-hits` as a separate dataset | Video rows and discovery-event rows answer different research questions | Researchers must understand two related export files | Provenance deserves its own dataset contract |
+| Professor-facing README and demo guide | Rely only on source code and ADRs | Polish README and demo documentation | Research software must be explainable and reviewable | Documentation requires maintenance as behavior changes | Professional software is not only implementation |
 | Do not commit `.env` or local SQLite DB | Include local secrets or data in repo | Ignore `.env`, `.db`, `.sqlite`, and related local artifacts | Protects secrets and keeps repository clean | Users must recreate local data | Reproducibility should come from commands and docs, not committed secrets |
 
 ## Milestone-by-Milestone Development Log
@@ -515,19 +565,52 @@ exports, frontend visualization, PostgreSQL deployment, or pandas dependencies i
 domain/application layers. The key lesson was that export behavior is a data contract
 and should be introduced with a small, tested shape first.
 
+### Milestone 9: README and Professor Demo Polish
+
+Milestone 9 polished `README.md` into a structured professor-facing project guide.
+It added or improved the table of contents, current capabilities, limitations,
+architecture diagrams, data-flow diagram, tech stack, repository structure, setup
+instructions, CLI demos, validation commands, documentation links, roadmap, and
+project status. This milestone did not change source code, database schema,
+collection behavior, or tests. It mattered because a research software project needs
+clear public-facing documentation, not only working code. The key lesson was that
+professional software is not only implementation; it must also be explainable,
+reproducible, and reviewable.
+
+### Milestone 10A: Search-Hit Provenance Export
+
+Milestone 10A added `export search-hits` with `--format csv|json`, `--output PATH`,
+`--overwrite`, and `--database-url`. The default outputs are
+`data/exports/search_hits.csv` and `data/exports/search_hits.json`. The command
+exports one row per search hit, including query/run provenance, search-hit rank and
+discovery time, video identity, selected metadata, `review_status`, and
+`relevance_label`. It does not include long annotation notes because this export is
+primarily a provenance and audit dataset.
+
+The command reads the local database only. It does not call YouTube, does not require
+`YOUTUBE_API_KEY`, does not modify the database, and does not change the schema. It
+complements video-level export: `export videos` answers what videos are stored,
+while `export search-hits` answers how those videos were discovered. This matters
+because research reproducibility depends on knowing not only the collected video set,
+but also the query and collection-run context that produced each discovery. The key
+lesson was that provenance should be exported as its own explicit dataset rather than
+being compressed into a single video-level table.
+
 ## Validation and Testing
 
 The normal automated tests are offline and deterministic. They use fake ports,
 mocked or fabricated API clients, temporary SQLite databases, fixed clocks, and
 Alembic-backed test databases. Real YouTube API calls are manual smoke tests only.
 
-Current validation through Milestone 8:
+Current validation through Milestone 10A:
 
-- `pytest`: 179 passed.
+- `pytest`: 201 passed.
 - `ruff check`: passed.
 - `ruff format --check`: passed.
 - `mypy src`: passed.
 - Application/domain boundary scan: passed.
+- Manual search-hit export smoke test: passed with five CSV rows and five JSON
+  records from the existing small smoke-test database.
 
 This matters for research reliability because the system can be changed and checked
 without spending API quota, requiring internet access, or exposing secrets. It also
@@ -581,10 +664,15 @@ fencing-video-research-agent runs show 999999
 
 Missing video or run lookups returned safe not-found messages. No API key was
 printed. Later milestones added local annotation and export workflows on top of the
-stored data, but the observed real collection remains a small smoke test. These
-results are a successful functional validation of the current backend workflow. They
-are not a large dataset and should not be used to draw scientific conclusions about
-fencing video content.
+stored data. Manual export verification now includes `videos.csv` and `videos.json`
+from the video-level export workflow, plus `search_hits.csv` and `search_hits.json`
+from the provenance export workflow. The local search-hit export produced five
+records from the existing small smoke-test database. Generated export files remain
+ignored by Git and are not committed.
+
+These results are a successful functional validation of the current backend workflow.
+They are not a large dataset and should not be used to draw scientific conclusions
+about fencing video content.
 
 ## Security, Ethics, and Reproducibility
 
@@ -615,8 +703,8 @@ The current project has important limitations:
 - There is no winner or outcome prediction.
 - Annotation editing is implemented only as a focused manual CLI workflow; richer
   annotation structures may require later schema decisions.
-- CSV and JSON video export is implemented, but search-hit-level provenance export is
-  not yet implemented.
+- CSV and JSON export is implemented for video-level records and search-hit
+  provenance records.
 - There is no frontend UI.
 - There is no PostgreSQL deployment yet.
 - There is not yet a large scientific dataset.
@@ -629,8 +717,6 @@ The current project has important limitations:
 ### Short-Term
 
 - Add richer annotation fields only if the research protocol needs them.
-- Add search-hit/provenance export as a separate dataset contract.
-- Expand README and demo instructions.
 - Expand research documentation as the project grows.
 - Add a repeatable small collection protocol for sabre-related searches.
 
@@ -641,6 +727,7 @@ The current project has important limitations:
 - Develop search query strategies for fencing and sabre topics.
 - Add data quality checks for missing metadata, duplicate discovery paths, and
   incomplete records.
+- Consider metadata snapshot history if refresh auditing becomes a research need.
 - Add PostgreSQL configuration as an optional persistence target.
 
 ### Long-Term
@@ -659,8 +746,10 @@ The current project has important limitations:
 The current contribution is a reproducible metadata pipeline for public fencing
 videos. It is not yet a final AI research contribution, but it is a necessary
 foundation for one. Future research could build from this system toward a larger
-curated fencing-video dataset, richer annotation protocols, provenance-specific
-exports, and eventually video-analysis methods.
+curated fencing-video dataset, richer annotation protocols, data quality checks, and
+eventually video-analysis methods. The system now includes both curated video-level
+export and provenance/search-hit export, which makes it easier to separate questions
+about what videos are stored from questions about how those videos were discovered.
 
 Possible research questions include:
 
@@ -672,7 +761,7 @@ Possible research questions include:
 
 The current project is suitable as a foundation for a conference poster or methods
 discussion once it is expanded with larger controlled collections, richer annotation
-protocols, provenance exports, and possibly later video-analysis experiments.
+protocols, data quality analysis, and possibly later video-analysis experiments.
 
 ## Glossary
 
@@ -757,6 +846,13 @@ fencing-video-research-agent export videos --format csv
 fencing-video-research-agent export videos --format json
 ```
 
+Export search-hit provenance data:
+
+```powershell
+fencing-video-research-agent export search-hits --format csv
+fencing-video-research-agent export search-hits --format json
+```
+
 ### Validation Commands
 
 ```powershell
@@ -786,6 +882,7 @@ fencing-video-research-agent annotations set-notes <youtube_video_id> --notes ".
 fencing-video-research-agent annotations set-label <youtube_video_id> <label>
 fencing-video-research-agent annotations clear-label <youtube_video_id>
 fencing-video-research-agent export videos
+fencing-video-research-agent export search-hits
 ```
 
 ### Git Milestone Commits
@@ -793,6 +890,9 @@ fencing-video-research-agent export videos
 Observed local milestone history:
 
 ```text
+0b88aff Add search-hit provenance export
+ca09fae Polish README and demo guide
+3d88a03 Add research report through Milestone 8
 46bdd09 Add pandas-backed video export workflow
 b027a85 Add manual video annotation workflow
 6c30c0d Add read-only collection run inspection commands
