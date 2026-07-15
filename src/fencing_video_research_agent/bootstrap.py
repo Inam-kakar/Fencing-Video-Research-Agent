@@ -12,12 +12,17 @@ from fencing_video_research_agent.application import (
     CollectVideosUseCase,
     ExportSearchHitsUseCase,
     ExportVideosUseCase,
-    ListCollectionRunsUseCase,
-    ListStoredVideosUseCase,
     SetAnnotationLabelUseCase,
     SetAnnotationNotesUseCase,
     SetAnnotationReviewStatusUseCase,
     ShowAnnotationUseCase,
+)
+from fencing_video_research_agent.application.inspect_storage import (
+    GetStoredDataSummaryUseCase,
+    ListCollectionRunsUseCase,
+    ListSearchHitTableRowsUseCase,
+    ListStoredVideosUseCase,
+    ListVideoTableRowsUseCase,
     ShowCollectionRunUseCase,
     ShowStoredVideoUseCase,
 )
@@ -71,6 +76,24 @@ class VideoInspectionRuntime:
     show_video: ShowStoredVideoUseCase
     list_collection_runs: ListCollectionRunsUseCase
     show_collection_run: ShowCollectionRunUseCase
+    engine: Engine
+
+    def close(self) -> None:
+        """Dispose of database resources held by the runtime."""
+
+        self.engine.dispose()
+
+
+@dataclass(frozen=True, slots=True)
+class ApiReadRuntime:
+    """Runtime resources for read-only API workflows."""
+
+    summary: GetStoredDataSummaryUseCase
+    list_video_table_rows: ListVideoTableRowsUseCase
+    show_video: ShowStoredVideoUseCase
+    list_collection_runs: ListCollectionRunsUseCase
+    show_collection_run: ShowCollectionRunUseCase
+    list_search_hit_table_rows: ListSearchHitTableRowsUseCase
     engine: Engine
 
     def close(self) -> None:
@@ -215,5 +238,24 @@ def build_video_inspection_runtime(settings: AppSettings) -> VideoInspectionRunt
         show_video=ShowStoredVideoUseCase(stored_data_reader=stored_data_reader),
         list_collection_runs=ListCollectionRunsUseCase(stored_data_reader=stored_data_reader),
         show_collection_run=ShowCollectionRunUseCase(stored_data_reader=stored_data_reader),
+        engine=engine,
+    )
+
+
+def build_api_read_runtime(settings: AppSettings) -> ApiReadRuntime:
+    """Wire read-only API use cases without constructing YouTube clients."""
+
+    engine = create_database_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+    stored_data_reader = SqlAlchemyStoredDataReader(session_factory)
+    return ApiReadRuntime(
+        summary=GetStoredDataSummaryUseCase(stored_data_reader=stored_data_reader),
+        list_video_table_rows=ListVideoTableRowsUseCase(stored_data_reader=stored_data_reader),
+        show_video=ShowStoredVideoUseCase(stored_data_reader=stored_data_reader),
+        list_collection_runs=ListCollectionRunsUseCase(stored_data_reader=stored_data_reader),
+        show_collection_run=ShowCollectionRunUseCase(stored_data_reader=stored_data_reader),
+        list_search_hit_table_rows=ListSearchHitTableRowsUseCase(
+            stored_data_reader=stored_data_reader
+        ),
         engine=engine,
     )

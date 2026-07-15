@@ -8,7 +8,8 @@ through the official YouTube Data API. It stores local research data in SQLite,
 preserves search provenance, supports manual annotation, and exports video-level
 and search-hit-level CSV/JSON datasets for later analysis and provenance auditing.
 
-Implementation state: through Milestone 10A.
+Implementation state: through Milestone 11B, including a read-only FastAPI backend
+API for future dashboard work.
 
 ## Table of Contents
 
@@ -23,6 +24,7 @@ Implementation state: through Milestone 10A.
 - [Environment Setup](#environment-setup)
 - [Quick Start Demo](#quick-start-demo)
 - [CLI Commands](#cli-commands)
+- [Read-Only HTTP API](#read-only-http-api)
 - [Data Model Summary](#data-model-summary)
 - [Research Workflow](#research-workflow)
 - [Export Workflow](#export-workflow)
@@ -60,6 +62,7 @@ video-AI experiments on top of a documented data foundation.
 | Manually annotate stored videos | `annotations show`, `set-status`, `set-notes`, `set-label`, `clear-label` | Implemented |
 | Export video-level CSV/JSON datasets | `export videos --format csv\|json` | Implemented |
 | Export search-hit provenance CSV/JSON datasets | `export search-hits --format csv\|json` | Implemented |
+| Serve read-only local database data over HTTP/JSON | FastAPI endpoints under `/api` | Implemented |
 | Run offline automated tests | `pytest`, Ruff, mypy | Implemented |
 
 ## What This Project Does Not Do Yet
@@ -87,6 +90,7 @@ environment details.
 ```mermaid
 flowchart LR
     CLI["Typer CLI"] --> App["Application Use Cases"]
+    API["FastAPI Read-Only API"] --> App
     App --> Ports["Ports / Interfaces"]
     Ports --> Infra["Infrastructure Adapters"]
     Infra --> DB["SQLite Database"]
@@ -100,6 +104,7 @@ flowchart LR
 | Ports | Project-owned interfaces for gateways, repositories, readers, writers, clocks, and Unit of Work |
 | Infrastructure | Concrete SQLAlchemy, Alembic, SQLite, YouTube API, settings, and pandas export implementations |
 | Interface/CLI | Typer commands, argument parsing, user-facing output, and safe exit codes |
+| API | FastAPI routes and response schemas for read-only HTTP/JSON access |
 | Bootstrap | Composition root that wires settings, adapters, repositories, and use cases |
 
 ## Data Flow
@@ -111,6 +116,7 @@ flowchart TD
     Collect --> UOW["Unit of Work"]
     UOW --> DB["SQLite Database"]
     DB --> Inspect["Inspection Commands"]
+    DB --> API["Read-Only FastAPI Endpoints"]
     DB --> Annotate["Annotation Commands"]
     DB --> Export["Export Command"]
     Export --> Files["CSV / JSON Files"]
@@ -125,6 +131,8 @@ annotation, and export read or write only the local SQLite database.
 | --- | --- | --- |
 | Python 3.12 | Main language | Modern, readable backend and research tooling |
 | Typer | Command-line interface | Clear, testable CLI commands |
+| FastAPI | Read-only HTTP API | Backend foundation for a future React dashboard |
+| Uvicorn | Local ASGI server | Runs the FastAPI app during local development |
 | SQLAlchemy 2.x | ORM and persistence mapping | Organized database access while keeping ORM code in infrastructure |
 | Alembic | Database migrations | Auditable schema evolution |
 | SQLite | Phase 1 database | Simple local storage for reproducible early research workflows |
@@ -132,6 +140,7 @@ annotation, and export read or write only the local SQLite database.
 | Pydantic Settings | Configuration loading and validation | Centralized environment-based settings |
 | `google-api-python-client` | Official YouTube Data API access | Uses the official API instead of webpage scraping |
 | pytest | Automated tests | Offline deterministic validation |
+| httpx | API test client support | Enables FastAPI/Starlette TestClient tests |
 | Ruff | Linting and formatting checks | Consistent code quality |
 | mypy | Static typing | Type-safety checks for the source package |
 | `python-dotenv` / settings loading support | Local `.env` loading | Keeps machine-specific configuration outside source code |
@@ -145,6 +154,7 @@ annotation, and export read or write only the local SQLite database.
 | `src/fencing_video_research_agent/ports` | Interfaces for external boundaries and replacement points |
 | `src/fencing_video_research_agent/infrastructure` | SQLAlchemy, Alembic, YouTube API, settings, and pandas export implementations |
 | `src/fencing_video_research_agent/interface` | Typer CLI entry point |
+| `src/fencing_video_research_agent/api` | Read-only FastAPI app, routes, dependencies, and response schemas |
 | `alembic` | Database migration environment and revisions |
 | `tests` | Offline deterministic test suite |
 | `docs/decisions` | Architecture Decision Records |
@@ -233,6 +243,33 @@ Do not put a real API key in the command line. The API key belongs only in `.env
 | `annotations clear-label <youtube_video_id>` | Clear the relevance label | No |
 | `export videos` | Export one row per stored video to CSV or JSON | No |
 | `export search-hits` | Export one row per search-hit provenance relationship to CSV or JSON | No |
+
+## Read-Only HTTP API
+
+Milestone 11B adds a backend-only FastAPI interface for future dashboard development.
+It reads from the same local SQLite database as the CLI and does not call YouTube.
+
+Run the local API server:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn "fencing_video_research_agent.api.main:create_app" --factory --reload
+```
+
+Available read-only endpoints:
+
+| Endpoint | Purpose | Requires YouTube API Key? |
+| --- | --- | --- |
+| `GET /health` | Health check | No |
+| `GET /api/summary` | Dashboard counts for videos, runs, hits, and annotations | No |
+| `GET /api/videos` | Paginated stored-video table rows with optional `search` | No |
+| `GET /api/videos/{youtube_video_id}` | One stored video with metadata, annotation summary, and compact provenance | No |
+| `GET /api/runs` | Paginated collection-run table rows | No |
+| `GET /api/runs/{run_id}` | One collection run with returned videos | No |
+| `GET /api/search-hits` | Paginated search-hit provenance rows with optional `query_text` | No |
+
+The API is intentionally read-only. Annotation editing, collection, and export remain
+CLI workflows for now. CORS and the React/Vite/MUI frontend are postponed to the
+frontend milestone.
 
 ## Data Model Summary
 
@@ -330,7 +367,7 @@ Run the full validation suite:
 Architecture boundary scan:
 
 ```powershell
-rg -n "googleapiclient|sqlalchemy|alembic|YOUTUBE_API_KEY|dotenv|os\.environ" src\fencing_video_research_agent\application src\fencing_video_research_agent\domain
+rg -n "fastapi|starlette|googleapiclient|sqlalchemy|alembic|YOUTUBE_API_KEY|dotenv|os\.environ" src\fencing_video_research_agent\application src\fencing_video_research_agent\domain
 ```
 
 The boundary scan should return no matches for the application and domain layers.
@@ -360,19 +397,18 @@ The boundary scan should return no matches for the application and domain layers
 
 | Stage | Future Work |
 | --- | --- |
-| Current documentation milestone | README and demo polish |
-| Current export milestone | Search-hit/provenance export as a separate dataset contract |
+| Current API milestone | Read-only FastAPI backend for stored research data |
 | Near term | Richer annotation protocol if the research method needs it |
 | Medium term | Larger controlled collection protocol for sabre-related searches |
-| Medium term | Frontend or dashboard after backend behavior remains stable |
+| Medium term | React, TypeScript, Vite, and MUI dashboard consuming the FastAPI API |
 | Medium term | PostgreSQL as a later optional persistence target |
 | Long term | Computer vision or event-detection experiments on top of curated metadata |
 
 ## Project Status
 
 The project is a Phase 1 backend and research-data foundation implemented through
-Milestone 8. It is suitable for continued research-software development, professor
-review, and future dataset-building work.
+Milestone 11B. It is suitable for continued research-software development, professor
+review, future dataset-building work, and a future dashboard frontend.
 
 It is not yet a full AI or video-analysis system. It does not detect fencing actions,
 analyze video content, train models, or claim scientific conclusions from the small

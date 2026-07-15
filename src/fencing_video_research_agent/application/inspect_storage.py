@@ -4,17 +4,33 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fencing_video_research_agent.ports import (
-    CollectionRunRecordId,
+from fencing_video_research_agent.ports import CollectionRunRecordId
+from fencing_video_research_agent.ports.stored_data import (
     StoredCollectionRunDetail,
     StoredCollectionRunSummary,
     StoredDataReader,
+    StoredDataSummary,
+    StoredSearchHitTableRow,
     StoredVideoDetail,
     StoredVideoSummary,
+    StoredVideoTableRow,
 )
 
 MAX_STORED_VIDEO_LIST_LIMIT = 100
 MAX_COLLECTION_RUN_LIST_LIMIT = 100
+MAX_API_TABLE_LIMIT = 100
+
+
+@dataclass(frozen=True, slots=True)
+class GetStoredDataSummaryRequest:
+    """Input for reading dashboard-oriented stored-data counts."""
+
+
+@dataclass(frozen=True, slots=True)
+class GetStoredDataSummaryResult:
+    """Dashboard-oriented stored-data count result."""
+
+    summary: StoredDataSummary
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +53,29 @@ class ListStoredVideosResult:
     """Read-only result for stored-video listing."""
 
     videos: tuple[StoredVideoSummary, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ListVideoTableRowsRequest:
+    """Input for listing API-friendly stored-video table rows."""
+
+    limit: int = 20
+    offset: int = 0
+    search: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_limit(self.limit)
+        if self.offset < 0:
+            msg = "offset must not be negative"
+            raise ValueError(msg)
+        object.__setattr__(self, "search", _optional_text(self.search))
+
+
+@dataclass(frozen=True, slots=True)
+class ListVideoTableRowsResult:
+    """Read-only result for API-friendly stored-video table rows."""
+
+    videos: tuple[StoredVideoTableRow, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +104,7 @@ class ListCollectionRunsRequest:
     """Input for listing stored collection runs."""
 
     limit: int = 20
+    offset: int = 0
 
     def __post_init__(self) -> None:
         if self.limit < 1:
@@ -73,6 +113,9 @@ class ListCollectionRunsRequest:
         if self.limit > MAX_COLLECTION_RUN_LIST_LIMIT:
             msg = f"limit must be at most {MAX_COLLECTION_RUN_LIST_LIMIT}"
             raise ValueError(msg)
+        if self.offset < 0:
+            msg = "offset must not be negative"
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +123,29 @@ class ListCollectionRunsResult:
     """Read-only result for collection-run listing."""
 
     runs: tuple[StoredCollectionRunSummary, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ListSearchHitTableRowsRequest:
+    """Input for listing API-friendly search-hit provenance table rows."""
+
+    limit: int = 20
+    offset: int = 0
+    query_text: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_limit(self.limit)
+        if self.offset < 0:
+            msg = "offset must not be negative"
+            raise ValueError(msg)
+        object.__setattr__(self, "query_text", _optional_text(self.query_text))
+
+
+@dataclass(frozen=True, slots=True)
+class ListSearchHitTableRowsResult:
+    """Read-only result for API-friendly search-hit provenance rows."""
+
+    search_hits: tuple[StoredSearchHitTableRow, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +197,37 @@ class ListStoredVideosUseCase:
         )
 
 
+class GetStoredDataSummaryUseCase:
+    """Read dashboard-oriented counts from the local research database."""
+
+    def __init__(self, *, stored_data_reader: StoredDataReader) -> None:
+        self._stored_data_reader = stored_data_reader
+
+    def execute(self, request: GetStoredDataSummaryRequest) -> GetStoredDataSummaryResult:
+        """Return stored-data counts without collecting new data."""
+
+        del request
+        return GetStoredDataSummaryResult(summary=self._stored_data_reader.get_summary())
+
+
+class ListVideoTableRowsUseCase:
+    """List API-friendly stored-video rows for a future dashboard."""
+
+    def __init__(self, *, stored_data_reader: StoredDataReader) -> None:
+        self._stored_data_reader = stored_data_reader
+
+    def execute(self, request: ListVideoTableRowsRequest) -> ListVideoTableRowsResult:
+        """Return stored-video table rows without collecting new data."""
+
+        return ListVideoTableRowsResult(
+            videos=self._stored_data_reader.list_video_table_rows(
+                limit=request.limit,
+                offset=request.offset,
+                search=request.search,
+            ),
+        )
+
+
 class ShowStoredVideoUseCase:
     """Inspect one video already stored in the local research database."""
 
@@ -156,7 +253,10 @@ class ListCollectionRunsUseCase:
         """Return stored collection-run summaries without collecting new data."""
 
         return ListCollectionRunsResult(
-            runs=self._stored_data_reader.list_collection_runs(limit=request.limit),
+            runs=self._stored_data_reader.list_collection_runs(
+                limit=request.limit,
+                offset=request.offset,
+            ),
         )
 
 
@@ -175,3 +275,39 @@ class ShowCollectionRunUseCase:
         if run is None:
             raise StoredCollectionRunNotFoundError(request.run_id)
         return ShowCollectionRunResult(run=run)
+
+
+class ListSearchHitTableRowsUseCase:
+    """List API-friendly search-hit provenance rows for a future dashboard."""
+
+    def __init__(self, *, stored_data_reader: StoredDataReader) -> None:
+        self._stored_data_reader = stored_data_reader
+
+    def execute(self, request: ListSearchHitTableRowsRequest) -> ListSearchHitTableRowsResult:
+        """Return search-hit provenance rows without collecting new data."""
+
+        return ListSearchHitTableRowsResult(
+            search_hits=self._stored_data_reader.list_search_hit_table_rows(
+                limit=request.limit,
+                offset=request.offset,
+                query_text=request.query_text,
+            ),
+        )
+
+
+def _validate_limit(limit: int) -> None:
+    if limit < 1:
+        msg = "limit must be positive"
+        raise ValueError(msg)
+    if limit > MAX_API_TABLE_LIMIT:
+        msg = f"limit must be at most {MAX_API_TABLE_LIMIT}"
+        raise ValueError(msg)
+
+
+def _optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    return stripped
