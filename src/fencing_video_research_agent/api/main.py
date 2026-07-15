@@ -6,11 +6,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from fencing_video_research_agent.api.routes import health, runs, search_hits, summary, videos
 from fencing_video_research_agent.bootstrap import build_api_read_runtime
 from fencing_video_research_agent.infrastructure.migrations import ensure_database_current
 from fencing_video_research_agent.infrastructure.settings import AppSettings, load_settings
+
+LOCAL_FRONTEND_ORIGIN = "http://localhost:5173"
 
 
 def create_app(
@@ -42,6 +45,13 @@ def create_app(
         title="Fencing Video Research Agent API",
         version="0.1.0",
         lifespan=lifespan,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[LOCAL_FRONTEND_ORIGIN],
+        allow_methods=["GET"],
+        allow_headers=[],
+        allow_credentials=False,
     )
     app.state.api_read_runtime = runtime
     app.include_router(health.router)

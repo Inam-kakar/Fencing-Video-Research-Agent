@@ -6,6 +6,8 @@ venv/
 .env
 .env.*
 !.env.example
+frontend/.env.local
+frontend/.env.*.local
 
 # Python bytecode
 __pycache__/
@@ -16,6 +18,8 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+frontend/node_modules/
+frontend/dist/
 
 # Test and analysis caches
 .pytest_cache/
