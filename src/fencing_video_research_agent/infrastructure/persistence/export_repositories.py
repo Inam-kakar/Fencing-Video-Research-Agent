@@ -15,7 +15,11 @@ from fencing_video_research_agent.infrastructure.persistence.models import (
     VideoRecord,
     YouTubeVideoMetadataRecord,
 )
-from fencing_video_research_agent.ports import IncompleteVideoRecordError, VideoExportRecord
+from fencing_video_research_agent.ports import (
+    IncompleteVideoRecordError,
+    SearchHitExportRecord,
+    VideoExportRecord,
+)
 
 
 class SqlAlchemyVideoExportReader:
@@ -41,6 +45,37 @@ class SqlAlchemyVideoExportReader:
             ).all()
 
         return tuple(_export_record_from_video(record) for record in records)
+
+
+class SqlAlchemySearchHitExportReader:
+    """Read export-ready search-hit provenance records from the local database."""
+
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+
+    def read_search_hit_exports(self) -> tuple[SearchHitExportRecord, ...]:
+        """Return one export row per search hit."""
+
+        with self._session_factory() as session:
+            records = session.scalars(
+                select(SearchHitRecord)
+                .join(SearchHitRecord.collection_run)
+                .options(
+                    joinedload(SearchHitRecord.collection_run).joinedload(
+                        CollectionRunRecord.search_query
+                    ),
+                    joinedload(SearchHitRecord.video).joinedload(VideoRecord.youtube_metadata),
+                    joinedload(SearchHitRecord.video).joinedload(VideoRecord.annotation),
+                )
+                .order_by(
+                    CollectionRunRecord.started_at.asc(),
+                    CollectionRunRecord.id.asc(),
+                    SearchHitRecord.rank.asc(),
+                    SearchHitRecord.id.asc(),
+                )
+            ).all()
+
+        return tuple(_search_hit_export_record_from_hit(record) for record in records)
 
 
 def _export_record_from_video(record: VideoRecord) -> VideoExportRecord:
@@ -76,6 +111,39 @@ def _export_record_from_video(record: VideoRecord) -> VideoExportRecord:
         latest_collection_run_started_at=provenance.latest_collection_run_started_at,
         first_query_text=provenance.first_query_text,
         latest_query_text=provenance.latest_query_text,
+    )
+
+
+def _search_hit_export_record_from_hit(record: SearchHitRecord) -> SearchHitExportRecord:
+    video = record.video
+    metadata = _required_metadata(video)
+    annotation = video.annotation
+    collection_run = record.collection_run
+    search_query = collection_run.search_query
+    return SearchHitExportRecord(
+        collection_run_id=collection_run.id,
+        query_text=search_query.query_text,
+        query_parameters=dict(search_query.parameters or {}),
+        query_fingerprint=search_query.parameters_fingerprint,
+        run_started_at=collection_run.started_at,
+        run_completed_at=collection_run.completed_at,
+        run_status=collection_run.status,
+        run_error_message=collection_run.error_message,
+        discovered_at=record.discovered_at,
+        rank=record.rank,
+        youtube_video_id=video.youtube_video_id,
+        title=metadata.title,
+        channel_id=metadata.channel_id,
+        channel_title=metadata.channel_title,
+        published_at=metadata.published_at,
+        duration_seconds=metadata.duration_seconds,
+        view_count=metadata.view_count,
+        like_count=metadata.like_count,
+        comment_count=metadata.comment_count,
+        video_url=metadata.video_url,
+        last_refreshed_at=metadata.last_refreshed_at,
+        review_status=_review_status(annotation),
+        relevance_label=None if annotation is None else annotation.relevance_label,
     )
 
 

@@ -10,6 +10,8 @@ from pydantic import SecretStr
 from typer.testing import CliRunner
 
 from fencing_video_research_agent.application import (
+    ExportSearchHitsRequest,
+    ExportSearchHitsResult,
     ExportVideosRequest,
     ExportVideosResult,
     InvalidExportFormatError,
@@ -26,6 +28,17 @@ class FakeExportVideosRuntime:
     """Fake export runtime returned by CLI bootstrap."""
 
     use_case: FakeExportVideosUseCase
+    events: list[str]
+
+    def close(self) -> None:
+        self.events.append("close")
+
+
+@dataclass
+class FakeExportSearchHitsRuntime:
+    """Fake search-hit export runtime returned by CLI bootstrap."""
+
+    use_case: FakeExportSearchHitsUseCase
     events: list[str]
 
     def close(self) -> None:
@@ -56,6 +69,36 @@ class FakeExportVideosUseCase:
         return ExportVideosResult(
             output_path=output_path,
             row_count=3,
+            export_format=request.export_format,
+        )
+
+
+class FakeExportSearchHitsUseCase:
+    """Fake search-hit export use case for deterministic CLI tests."""
+
+    def __init__(
+        self,
+        events: list[str],
+        *,
+        file_exists_path: Path | None = None,
+    ) -> None:
+        self.events = events
+        self.file_exists_path = file_exists_path
+        self.requests: list[ExportSearchHitsRequest] = []
+
+    def execute(self, request: ExportSearchHitsRequest) -> ExportSearchHitsResult:
+        self.events.append("export-search-hits")
+        self.requests.append(request)
+        if self.file_exists_path is not None:
+            raise ExportFileExistsError(self.file_exists_path)
+        if request.export_format not in {"csv", "json"}:
+            raise InvalidExportFormatError(request.export_format)
+        output_path = request.output_path or Path(
+            f"data/exports/search_hits.{request.export_format}"
+        )
+        return ExportSearchHitsResult(
+            output_path=output_path,
+            row_count=5,
             export_format=request.export_format,
         )
 
@@ -106,9 +149,68 @@ def install_export_cli_fakes(
     def fail_annotation_build(settings: AppSettings) -> object:
         raise AssertionError("export command must not build annotation runtime")
 
+    def fail_search_hit_build(settings: AppSettings) -> object:
+        raise AssertionError("export videos command must not build search-hit export runtime")
+
     monkeypatch.setattr(cli, "load_settings", fake_load_settings)
     monkeypatch.setattr(cli, "ensure_database_current", fake_ensure_database_current)
     monkeypatch.setattr(cli, "build_export_videos_runtime", fake_build_export_videos_runtime)
+    monkeypatch.setattr(cli, "build_export_search_hits_runtime", fail_search_hit_build)
+    monkeypatch.setattr(cli, "build_collect_videos_runtime", fail_collect_build)
+    monkeypatch.setattr(cli, "build_video_inspection_runtime", fail_read_build)
+    monkeypatch.setattr(cli, "build_annotation_runtime", fail_annotation_build)
+    return events, runtime
+
+
+def install_search_hit_export_cli_fakes(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    file_exists_path: Path | None = None,
+) -> tuple[list[str], FakeExportSearchHitsRuntime]:
+    """Replace search-hit export CLI dependencies with deterministic fakes."""
+
+    events: list[str] = []
+    runtime = FakeExportSearchHitsRuntime(
+        use_case=FakeExportSearchHitsUseCase(events, file_exists_path=file_exists_path),
+        events=events,
+    )
+
+    def fake_load_settings(
+        *,
+        require_youtube_api_key: bool = True,
+    ) -> AppSettings:
+        events.append(f"settings:{require_youtube_api_key}")
+        return fake_settings()
+
+    def fake_ensure_database_current(database_url: str) -> None:
+        events.append(f"migrate:{database_url}")
+
+    def fake_build_export_search_hits_runtime(
+        settings: AppSettings,
+    ) -> FakeExportSearchHitsRuntime:
+        events.append(f"build-export-search-hits:{settings.database_url}")
+        return runtime
+
+    def fail_collect_build(settings: AppSettings) -> object:
+        raise AssertionError("export search-hits command must not build collection runtime")
+
+    def fail_read_build(settings: AppSettings) -> object:
+        raise AssertionError("export search-hits command must not build read-only runtime")
+
+    def fail_annotation_build(settings: AppSettings) -> object:
+        raise AssertionError("export search-hits command must not build annotation runtime")
+
+    def fail_video_export_build(settings: AppSettings) -> object:
+        raise AssertionError("export search-hits command must not build video export runtime")
+
+    monkeypatch.setattr(cli, "load_settings", fake_load_settings)
+    monkeypatch.setattr(cli, "ensure_database_current", fake_ensure_database_current)
+    monkeypatch.setattr(
+        cli,
+        "build_export_search_hits_runtime",
+        fake_build_export_search_hits_runtime,
+    )
+    monkeypatch.setattr(cli, "build_export_videos_runtime", fail_video_export_build)
     monkeypatch.setattr(cli, "build_collect_videos_runtime", fail_collect_build)
     monkeypatch.setattr(cli, "build_video_inspection_runtime", fail_read_build)
     monkeypatch.setattr(cli, "build_annotation_runtime", fail_annotation_build)
@@ -233,6 +335,132 @@ def test_export_videos_reports_existing_output_without_overwrite(
     assert result.exit_code == 3
     assert "Export file already exists: data\\exports\\videos.csv" in result.output or (
         "Export file already exists: data/exports/videos.csv" in result.output
+    )
+    assert "--overwrite" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_export_search_hits_runs_migration_before_exporting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events, _runtime = install_search_hit_export_cli_fakes(monkeypatch)
+
+    result = runner.invoke(cli.app, ["export", "search-hits"])
+
+    assert result.exit_code == 0
+    assert events == [
+        "settings:False",
+        "migrate:sqlite:///tmp/export.sqlite",
+        "build-export-search-hits:sqlite:///tmp/export.sqlite",
+        "export-search-hits",
+        "close",
+    ]
+
+
+def test_export_search_hits_prints_only_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_search_hit_export_cli_fakes(monkeypatch)
+
+    result = runner.invoke(cli.app, ["export", "search-hits", "--format", "json"])
+
+    assert result.exit_code == 0
+    assert "Export path: data/exports/search_hits.json" in result.output
+    assert "Row count: 5" in result.output
+    assert "Format: json" in result.output
+    assert "Sabre final" not in result.output
+    assert "export-secret-key" not in result.output
+
+
+def test_export_search_hits_output_and_overwrite_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _events, runtime = install_search_hit_export_cli_fakes(monkeypatch)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "export",
+            "search-hits",
+            "--format",
+            "csv",
+            "--output",
+            "tmp/custom-search-hits.csv",
+            "--overwrite",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert runtime.use_case.requests[0] == ExportSearchHitsRequest(
+        export_format="csv",
+        output_path=Path("tmp/custom-search-hits.csv"),
+        overwrite=True,
+    )
+
+
+def test_export_search_hits_database_url_option_overrides_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events, _runtime = install_search_hit_export_cli_fakes(monkeypatch)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "export",
+            "search-hits",
+            "--database-url",
+            "sqlite:///tmp/override.sqlite",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "migrate:sqlite:///tmp/override.sqlite" in events
+    assert "build-export-search-hits:sqlite:///tmp/override.sqlite" in events
+
+
+def test_export_search_hits_does_not_require_youtube_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events, _runtime = install_search_hit_export_cli_fakes(monkeypatch)
+
+    result = runner.invoke(cli.app, ["export", "search-hits"])
+
+    assert result.exit_code == 0
+    assert "settings:False" in events
+
+
+def test_export_search_hits_does_not_instantiate_other_runtimes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events, _runtime = install_search_hit_export_cli_fakes(monkeypatch)
+
+    result = runner.invoke(cli.app, ["export", "search-hits"])
+
+    assert result.exit_code == 0
+    assert not any(event.startswith("build:") for event in events)
+
+
+def test_export_search_hits_rejects_unknown_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_search_hit_export_cli_fakes(monkeypatch)
+
+    result = runner.invoke(cli.app, ["export", "search-hits", "--format", "xlsx"])
+
+    assert result.exit_code == 2
+    assert "export format must be csv or json" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_export_search_hits_reports_existing_output_without_overwrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_search_hit_export_cli_fakes(
+        monkeypatch,
+        file_exists_path=Path("data/exports/search_hits.csv"),
+    )
+
+    result = runner.invoke(cli.app, ["export", "search-hits"])
+
+    assert result.exit_code == 3
+    assert "Export file already exists: data\\exports\\search_hits.csv" in result.output or (
+        "Export file already exists: data/exports/search_hits.csv" in result.output
     )
     assert "--overwrite" in result.output
     assert "Traceback" not in result.output

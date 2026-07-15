@@ -3,6 +3,11 @@
 from fencing_video_research_agent.ports.clock import Clock
 from fencing_video_research_agent.ports.exports import (
     ExportFileExistsError,
+    SearchHitExportFormat,
+    SearchHitExportReader,
+    SearchHitExportRecord,
+    SearchHitExportWriter,
+    SearchHitExportWriteResult,
     VideoExportFormat,
     VideoExportReader,
     VideoExportRecord,
@@ -49,6 +54,11 @@ __all__ = [
     "IncompleteVideoRecordError",
     "PermanentYouTubeGatewayError",
     "RepositoryError",
+    "SearchHitExportFormat",
+    "SearchHitExportReader",
+    "SearchHitExportRecord",
+    "SearchHitExportWriter",
+    "SearchHitExportWriteResult",
     "SearchQueryRecordId",
     "StoredCollectionRunDetail",
     "StoredCollectionRunHit",

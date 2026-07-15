@@ -15,6 +15,8 @@ from fencing_video_research_agent.application import (
     ClearAnnotationLabelResult,
     CollectVideosRequest,
     CollectVideosResult,
+    ExportSearchHitsRequest,
+    ExportSearchHitsResult,
     ExportVideosRequest,
     ExportVideosResult,
     InvalidExportFormatError,
@@ -39,10 +41,12 @@ from fencing_video_research_agent.application import (
 from fencing_video_research_agent.bootstrap import (
     AnnotationRuntime,
     CollectVideosRuntime,
+    ExportSearchHitsRuntime,
     ExportVideosRuntime,
     VideoInspectionRuntime,
     build_annotation_runtime,
     build_collect_videos_runtime,
+    build_export_search_hits_runtime,
     build_export_videos_runtime,
     build_video_inspection_runtime,
 )
@@ -427,6 +431,66 @@ def export_videos(
     _print_export_videos_result(result)
 
 
+@export_app.command("search-hits")
+def export_search_hits(
+    export_format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            help="Export format: csv or json.",
+        ),
+    ] = "csv",
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="Output file path. Defaults to data/exports/search_hits.*."),
+    ] = None,
+    overwrite: Annotated[
+        bool,
+        typer.Option("--overwrite", help="Overwrite the output file if it already exists."),
+    ] = False,
+    database_url: Annotated[
+        str | None,
+        typer.Option("--database-url", help="Override DATABASE_URL for this export."),
+    ] = None,
+) -> None:
+    """Export one row per search-hit provenance relationship."""
+
+    runtime: ExportSearchHitsRuntime | None = None
+    try:
+        settings = load_settings(require_youtube_api_key=False)
+        if database_url is not None:
+            settings = settings.model_copy(update={"database_url": database_url})
+
+        ensure_database_current(settings.database_url)
+        runtime = build_export_search_hits_runtime(settings)
+        result = runtime.use_case.execute(
+            ExportSearchHitsRequest(
+                export_format=export_format,
+                output_path=output,
+                overwrite=overwrite,
+            ),
+        )
+    except ConfigurationError as exc:
+        _fail(f"Configuration error: {exc}", code=1)
+    except InvalidExportFormatError as exc:
+        _fail(str(exc), code=2)
+    except ExportFileExistsError as exc:
+        _fail(
+            f"Export file already exists: {_format_path(exc.output_path)}. "
+            "Use --overwrite to replace it.",
+            code=3,
+        )
+    except (MigrationError, RepositoryError) as exc:
+        _fail(f"Database operation failed: {exc}", code=5)
+    except Exception:
+        _fail("Unexpected error: export failed", code=6)
+    finally:
+        if runtime is not None:
+            runtime.close()
+
+    _print_export_search_hits_result(result)
+
+
 @videos_app.command("list")
 def list_stored_videos(
     limit: Annotated[
@@ -641,6 +705,12 @@ def _print_annotation_label_clear(result: ClearAnnotationLabelResult) -> None:
 
 
 def _print_export_videos_result(result: ExportVideosResult) -> None:
+    typer.echo(f"Export path: {_format_path(result.output_path)}")
+    typer.echo(f"Row count: {result.row_count}")
+    typer.echo(f"Format: {result.export_format}")
+
+
+def _print_export_search_hits_result(result: ExportSearchHitsResult) -> None:
     typer.echo(f"Export path: {_format_path(result.output_path)}")
     typer.echo(f"Row count: {result.row_count}")
     typer.echo(f"Format: {result.export_format}")

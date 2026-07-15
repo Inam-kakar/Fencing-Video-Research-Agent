@@ -6,9 +6,9 @@ fencing-video metadata collection.
 The current implementation focuses on sabre-related YouTube metadata collected
 through the official YouTube Data API. It stores local research data in SQLite,
 preserves search provenance, supports manual annotation, and exports video-level
-CSV/JSON datasets for later analysis.
+and search-hit-level CSV/JSON datasets for later analysis and provenance auditing.
 
-Implementation state: through Milestone 8.
+Implementation state: through Milestone 10A.
 
 ## Table of Contents
 
@@ -58,7 +58,8 @@ video-AI experiments on top of a documented data foundation.
 | Inspect stored videos | `videos list`, `videos show` | Implemented |
 | Inspect collection runs | `runs list`, `runs show` | Implemented |
 | Manually annotate stored videos | `annotations show`, `set-status`, `set-notes`, `set-label`, `clear-label` | Implemented |
-| Export CSV/JSON datasets | `export videos --format csv\|json` | Implemented |
+| Export video-level CSV/JSON datasets | `export videos --format csv\|json` | Implemented |
+| Export search-hit provenance CSV/JSON datasets | `export search-hits --format csv\|json` | Implemented |
 | Run offline automated tests | `pytest`, Ruff, mypy | Implemented |
 
 ## What This Project Does Not Do Yet
@@ -211,6 +212,7 @@ fencing-video-research-agent runs list
 fencing-video-research-agent annotations set-status <youtube_video_id> reviewed
 fencing-video-research-agent annotations set-notes <youtube_video_id> --notes "Useful sabre bout."
 fencing-video-research-agent export videos --format csv --overwrite
+fencing-video-research-agent export search-hits --format csv --overwrite
 ```
 
 Do not put a real API key in the command line. The API key belongs only in `.env`.
@@ -230,6 +232,7 @@ Do not put a real API key in the command line. The API key belongs only in `.env
 | `annotations set-label <youtube_video_id> <label>` | Store one relevance label | No |
 | `annotations clear-label <youtube_video_id>` | Clear the relevance label | No |
 | `export videos` | Export one row per stored video to CSV or JSON | No |
+| `export search-hits` | Export one row per search-hit provenance relationship to CSV or JSON | No |
 
 ## Data Model Summary
 
@@ -289,6 +292,26 @@ Export behavior:
   provenance summary fields.
 - Export commands do not call YouTube and do not require `YOUTUBE_API_KEY`.
 
+Use `export search-hits` to write one row per search-hit relationship:
+
+```powershell
+fencing-video-research-agent export search-hits
+fencing-video-research-agent export search-hits --format json
+fencing-video-research-agent export search-hits --output data/exports/custom-search-hits.csv
+fencing-video-research-agent export search-hits --format csv --overwrite
+```
+
+Search-hit export behavior:
+
+- Default CSV output: `data/exports/search_hits.csv`.
+- Default JSON output: `data/exports/search_hits.json`.
+- Each export row represents one search hit, not one video.
+- Repeated videos across multiple collection runs appear as multiple rows.
+- Exported records include query text, query parameters, run timing/status, hit rank,
+  video identity, useful metadata, and compact annotation summary fields.
+- CSV encodes `query_parameters` as a JSON string; JSON keeps it as an object.
+- Long annotation notes are intentionally not included in this provenance export.
+
 ## Testing and Validation
 
 Normal automated tests are offline and deterministic. They use fake ports, fabricated
@@ -338,7 +361,7 @@ The boundary scan should return no matches for the application and domain layers
 | Stage | Future Work |
 | --- | --- |
 | Current documentation milestone | README and demo polish |
-| Near term | Search-hit/provenance export as a separate dataset contract |
+| Current export milestone | Search-hit/provenance export as a separate dataset contract |
 | Near term | Richer annotation protocol if the research method needs it |
 | Medium term | Larger controlled collection protocol for sabre-related searches |
 | Medium term | Frontend or dashboard after backend behavior remains stable |

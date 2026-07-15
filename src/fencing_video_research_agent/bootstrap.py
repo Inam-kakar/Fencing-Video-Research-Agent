@@ -10,6 +10,7 @@ from sqlalchemy.engine import Engine
 from fencing_video_research_agent.application import (
     ClearAnnotationLabelUseCase,
     CollectVideosUseCase,
+    ExportSearchHitsUseCase,
     ExportVideosUseCase,
     ListCollectionRunsUseCase,
     ListStoredVideosUseCase,
@@ -21,12 +22,16 @@ from fencing_video_research_agent.application import (
     ShowStoredVideoUseCase,
 )
 from fencing_video_research_agent.infrastructure.clock import SystemClock
-from fencing_video_research_agent.infrastructure.exports import PandasVideoExportWriter
+from fencing_video_research_agent.infrastructure.exports import (
+    PandasSearchHitExportWriter,
+    PandasVideoExportWriter,
+)
 from fencing_video_research_agent.infrastructure.persistence.database import (
     create_database_engine,
     create_session_factory,
 )
 from fencing_video_research_agent.infrastructure.persistence.export_repositories import (
+    SqlAlchemySearchHitExportReader,
     SqlAlchemyVideoExportReader,
 )
 from fencing_video_research_agent.infrastructure.persistence.read_repositories import (
@@ -104,6 +109,19 @@ class ExportVideosRuntime:
         self.engine.dispose()
 
 
+@dataclass(frozen=True, slots=True)
+class ExportSearchHitsRuntime:
+    """Runtime resources for search-hit provenance export workflows."""
+
+    use_case: ExportSearchHitsUseCase
+    engine: Engine
+
+    def close(self) -> None:
+        """Dispose of database resources held by the runtime."""
+
+        self.engine.dispose()
+
+
 def build_collect_videos_runtime(settings: AppSettings) -> CollectVideosRuntime:
     """Wire the collect-videos use case to concrete infrastructure."""
 
@@ -169,6 +187,19 @@ def build_export_videos_runtime(settings: AppSettings) -> ExportVideosRuntime:
     writer = PandasVideoExportWriter()
     return ExportVideosRuntime(
         use_case=ExportVideosUseCase(reader=reader, writer=writer),
+        engine=engine,
+    )
+
+
+def build_export_search_hits_runtime(settings: AppSettings) -> ExportSearchHitsRuntime:
+    """Wire search-hit export use case without constructing YouTube clients."""
+
+    engine = create_database_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+    reader = SqlAlchemySearchHitExportReader(session_factory)
+    writer = PandasSearchHitExportWriter()
+    return ExportSearchHitsRuntime(
+        use_case=ExportSearchHitsUseCase(reader=reader, writer=writer),
         engine=engine,
     )
 

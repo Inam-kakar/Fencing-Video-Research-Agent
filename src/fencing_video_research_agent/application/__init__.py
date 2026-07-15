@@ -23,6 +23,11 @@ from fencing_video_research_agent.application.collect_videos import (
     CollectVideosUseCase,
     MissingYouTubeMetadataError,
 )
+from fencing_video_research_agent.application.export_search_hits import (
+    ExportSearchHitsRequest,
+    ExportSearchHitsResult,
+    ExportSearchHitsUseCase,
+)
 from fencing_video_research_agent.application.export_videos import (
     ExportVideosRequest,
     ExportVideosResult,
@@ -55,11 +60,14 @@ __all__ = [
     "CollectVideosRequest",
     "CollectVideosResult",
     "CollectVideosUseCase",
+    "ExportSearchHitsRequest",
+    "ExportSearchHitsResult",
+    "ExportSearchHitsUseCase",
     "ExportVideosRequest",
     "ExportVideosResult",
     "ExportVideosUseCase",
-    "InvalidReviewStatusError",
     "InvalidExportFormatError",
+    "InvalidReviewStatusError",
     "ListCollectionRunsRequest",
     "ListCollectionRunsResult",
     "ListCollectionRunsUseCase",

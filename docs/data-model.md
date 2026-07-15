@@ -171,7 +171,7 @@ remain in relational columns, foreign keys, unique constraints, and check constr
 SQLAlchemy's `JSON` type keeps the design portable enough for SQLite now and
 PostgreSQL later.
 
-## Exported Video Dataset
+## Exported Datasets
 
 Milestone 8 adds a pandas-backed video export that reads the existing schema and
 writes one row per stored video to CSV or JSON. The export includes latest YouTube
@@ -182,8 +182,21 @@ latest query text.
 CSV exports encode structured fields such as `tags` and `fencer_names` as JSON
 strings to avoid delimiter ambiguity. JSON exports preserve those fields as arrays.
 
-The video export does not create new database tables, call YouTube, refresh metadata,
-or modify stored data. Full one-row-per-search-hit provenance exports are postponed.
+Milestone 10A adds a search-hit provenance export that reads the same schema and
+writes one row per `search_hits` row to CSV or JSON. This export preserves the exact
+query, collection run, rank, discovery timestamp, video identity, useful metadata, and
+small annotation summary for each search-hit relationship.
+
+The two exports serve different research questions:
+
+- `export videos`: one row per stored video for review and analysis.
+- `export search-hits`: one row per search hit for provenance auditing.
+
+CSV search-hit exports encode `query_parameters` as a JSON string. JSON search-hit
+exports preserve `query_parameters` as an object.
+
+Exports do not create new database tables, call YouTube, refresh metadata, or modify
+stored data.
 
 ## Not Implemented Yet
 
@@ -213,6 +226,5 @@ search_queries -> collection_runs -> search_hits -> videos
 
 ## Not Implemented Yet
 
-The project does not yet implement search-hit export datasets, video downloading,
-computer vision, event detection, scoring detection, web UI, cloud deployment, or
-metadata snapshot history.
+The project does not yet implement video downloading, computer vision, event
+detection, scoring detection, web UI, cloud deployment, or metadata snapshot history.

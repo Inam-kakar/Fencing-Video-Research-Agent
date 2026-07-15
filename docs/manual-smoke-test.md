@@ -148,6 +148,24 @@ Existing files are not overwritten unless explicitly requested:
 fencing-video-research-agent export videos --overwrite
 ```
 
+Export one row per search hit for provenance auditing:
+
+```powershell
+fencing-video-research-agent export search-hits
+```
+
+By default this writes CSV output to:
+
+```text
+data/exports/search_hits.csv
+```
+
+Export JSON search-hit provenance instead:
+
+```powershell
+fencing-video-research-agent export search-hits --format json
+```
+
 Export commands use the local database only. They run Alembic migration checks before
 reading, do not collect or refresh metadata, and do not require `YOUTUBE_API_KEY`.
 Generated files under `data/exports/` are ignored by Git.
