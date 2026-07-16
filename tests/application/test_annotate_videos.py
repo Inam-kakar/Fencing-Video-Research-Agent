@@ -22,6 +22,8 @@ from fencing_video_research_agent.application import (
     SetAnnotationReviewStatusUseCase,
     ShowAnnotationRequest,
     ShowAnnotationUseCase,
+    UpdateAnnotationRequest,
+    UpdateAnnotationUseCase,
 )
 from fencing_video_research_agent.domain import (
     ResearchAnnotation,
@@ -396,3 +398,140 @@ def test_failed_annotation_write_does_not_commit() -> None:
 
     assert unit_of_work.commit_count == 0
     assert unit_of_work.rollback_count == 1
+
+
+def test_update_annotation_updates_multiple_fields_in_one_commit() -> None:
+    existing = make_annotation(
+        review_status=ReviewStatus.UNREVIEWED,
+        notes="Keep old notes until replaced.",
+        relevance_label="candidate",
+    )
+    unit_of_work = make_unit_of_work(video=make_video(), annotation=existing)
+    use_case = UpdateAnnotationUseCase(
+        unit_of_work_factory=lambda: unit_of_work,
+        clock=FixedClock(),
+    )
+
+    result = use_case.execute(
+        UpdateAnnotationRequest(
+            youtube_video_id="video-123",
+            review_status="reviewed",
+            relevance_label="olympic-sabre-final",
+            notes="Useful full sabre final footage.",
+            update_review_status=True,
+            update_relevance_label=True,
+            update_notes=True,
+        )
+    )
+
+    assert result.annotation.review_status is ReviewStatus.REVIEWED
+    assert result.annotation.relevance_label == "olympic-sabre-final"
+    assert result.annotation.notes == "Useful full sabre final footage."
+    assert result.annotation.competition_name == existing.competition_name
+    assert result.annotation.fencer_names == existing.fencer_names
+    assert result.annotation.weapon_category == existing.weapon_category
+    assert unit_of_work.annotations.saved == [result.annotation]
+    assert unit_of_work.commit_count == 1
+
+
+def test_update_annotation_creates_annotation_if_missing() -> None:
+    unit_of_work = make_unit_of_work(video=make_video())
+    use_case = UpdateAnnotationUseCase(
+        unit_of_work_factory=lambda: unit_of_work,
+        clock=FixedClock(),
+    )
+
+    result = use_case.execute(
+        UpdateAnnotationRequest(
+            youtube_video_id="video-123",
+            review_status="reviewed",
+            update_review_status=True,
+        )
+    )
+
+    assert result.annotation.youtube_video_id == "video-123"
+    assert result.annotation.review_status is ReviewStatus.REVIEWED
+    assert result.annotation.relevance_label is None
+    assert result.annotation.notes is None
+    assert unit_of_work.commit_count == 1
+
+
+def test_update_annotation_clears_label_when_null_or_empty_string() -> None:
+    existing = make_annotation(relevance_label="candidate")
+    unit_of_work = make_unit_of_work(video=make_video(), annotation=existing)
+    use_case = UpdateAnnotationUseCase(
+        unit_of_work_factory=lambda: unit_of_work,
+        clock=FixedClock(),
+    )
+
+    first_result = use_case.execute(
+        UpdateAnnotationRequest(
+            youtube_video_id="video-123",
+            relevance_label=None,
+            update_relevance_label=True,
+        )
+    )
+    second_result = use_case.execute(
+        UpdateAnnotationRequest(
+            youtube_video_id="video-123",
+            relevance_label="   ",
+            update_relevance_label=True,
+        )
+    )
+
+    assert first_result.annotation.relevance_label is None
+    assert second_result.annotation.relevance_label is None
+    assert unit_of_work.commit_count == 2
+
+
+def test_update_annotation_clears_notes_when_null_or_blank() -> None:
+    existing = make_annotation(notes="Existing notes.")
+    unit_of_work = make_unit_of_work(video=make_video(), annotation=existing)
+    use_case = UpdateAnnotationUseCase(
+        unit_of_work_factory=lambda: unit_of_work,
+        clock=FixedClock(),
+    )
+
+    first_result = use_case.execute(
+        UpdateAnnotationRequest(
+            youtube_video_id="video-123",
+            notes=None,
+            update_notes=True,
+        )
+    )
+    second_result = use_case.execute(
+        UpdateAnnotationRequest(
+            youtube_video_id="video-123",
+            notes="   ",
+            update_notes=True,
+        )
+    )
+
+    assert first_result.annotation.notes is None
+    assert second_result.annotation.notes is None
+    assert unit_of_work.commit_count == 2
+
+
+def test_update_annotation_rejects_empty_update() -> None:
+    with pytest.raises(ValueError, match="at least one annotation field"):
+        UpdateAnnotationRequest(youtube_video_id="video-123")
+
+
+def test_update_annotation_raises_for_missing_video() -> None:
+    unit_of_work = make_unit_of_work()
+    use_case = UpdateAnnotationUseCase(
+        unit_of_work_factory=lambda: unit_of_work,
+        clock=FixedClock(),
+    )
+
+    with pytest.raises(AnnotationVideoNotFoundError) as error:
+        use_case.execute(
+            UpdateAnnotationRequest(
+                youtube_video_id="missing-video",
+                notes="Cannot save this.",
+                update_notes=True,
+            )
+        )
+
+    assert error.value.youtube_video_id == "missing-video"
+    assert unit_of_work.commit_count == 0

@@ -1,9 +1,15 @@
-import { Alert, Button, Stack, TextField } from "@mui/material";
+import { Alert, Button, Snackbar, Stack, TextField } from "@mui/material";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
-import { getVideos } from "../api/client";
-import type { VideoListResponse } from "../api/types";
+import { getVideo, getVideos, updateVideoAnnotation } from "../api/client";
+import type {
+  UpdateVideoAnnotationRequest,
+  VideoDetailResponse,
+  VideoListItemResponse,
+  VideoListResponse,
+} from "../api/types";
+import { AnnotationEditDialog } from "../components/AnnotationEditDialog";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { PageHeader } from "../components/PageHeader";
@@ -20,6 +26,12 @@ export function VideosPage() {
   const [videosState, setVideosState] = useState<VideosState>({ status: "loading" });
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [selectedVideo, setSelectedVideo] = useState<VideoDetailResponse | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogLoading, setDialogLoading] = useState(false);
+  const [dialogSaving, setDialogSaving] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadVideos = useCallback(() => {
     setVideosState({ status: "loading" });
@@ -44,6 +56,58 @@ export function VideosPage() {
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAppliedSearch(searchInput.trim());
+  }
+
+  function handleEditAnnotation(video: VideoListItemResponse) {
+    setDialogOpen(true);
+    setSelectedVideo(null);
+    setDialogError(null);
+    setDialogLoading(true);
+
+    getVideo(video.youtube_video_id)
+      .then((videoDetail) => {
+        setSelectedVideo(videoDetail);
+      })
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : "Unable to load annotation details";
+        setDialogError(message);
+      })
+      .finally(() => {
+        setDialogLoading(false);
+      });
+  }
+
+  function handleDialogClose() {
+    if (dialogSaving) {
+      return;
+    }
+    setDialogOpen(false);
+    setSelectedVideo(null);
+    setDialogError(null);
+  }
+
+  function handleAnnotationSave(payload: UpdateVideoAnnotationRequest) {
+    if (selectedVideo === null) {
+      return;
+    }
+
+    setDialogSaving(true);
+    setDialogError(null);
+    updateVideoAnnotation(selectedVideo.youtube_video_id, payload)
+      .then(() => {
+        setDialogOpen(false);
+        setSelectedVideo(null);
+        setSuccessMessage("Annotation updated.");
+        loadVideos();
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Unable to update annotation";
+        setDialogError(message);
+      })
+      .finally(() => {
+        setDialogSaving(false);
+      });
   }
 
   return (
@@ -77,7 +141,34 @@ export function VideosPage() {
       {videosState.status === "error" ? (
         <ErrorState message={videosState.message} onRetry={loadVideos} />
       ) : null}
-      {videosState.status === "ready" ? <VideosTable videos={videosState.videos.items} /> : null}
+      {videosState.status === "ready" ? (
+        <VideosTable
+          onEditAnnotation={handleEditAnnotation}
+          videos={videosState.videos.items}
+        />
+      ) : null}
+      <AnnotationEditDialog
+        errorMessage={dialogError}
+        loading={dialogLoading}
+        onClose={handleDialogClose}
+        onSave={handleAnnotationSave}
+        open={dialogOpen}
+        saving={dialogSaving}
+        video={selectedVideo}
+      />
+      <Snackbar
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage(null)}
+        open={successMessage !== null}
+      >
+        <Alert
+          onClose={() => setSuccessMessage(null)}
+          severity="success"
+          variant="filled"
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
     </Stack>
   );
 }

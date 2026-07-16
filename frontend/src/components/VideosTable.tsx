@@ -1,4 +1,5 @@
 import {
+  Button,
   Chip,
   Link,
   Paper,
@@ -14,10 +15,11 @@ import type { VideoListItemResponse } from "../api/types";
 import { DataTableEmptyState } from "./DataTableEmptyState";
 
 type VideosTableProps = {
+  onEditAnnotation: (video: VideoListItemResponse) => void;
   videos: VideoListItemResponse[];
 };
 
-export function VideosTable({ videos }: VideosTableProps) {
+export function VideosTable({ onEditAnnotation, videos }: VideosTableProps) {
   if (videos.length === 0) {
     return <DataTableEmptyState message="No stored videos found." />;
   }
@@ -36,6 +38,7 @@ export function VideosTable({ videos }: VideosTableProps) {
             <TableCell>Review status</TableCell>
             <TableCell>Relevance label</TableCell>
             <TableCell>YouTube link</TableCell>
+            <TableCell>Annotation</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -59,6 +62,15 @@ export function VideosTable({ videos }: VideosTableProps) {
                 ) : (
                   "Not available"
                 )}
+              </TableCell>
+              <TableCell>
+                <Button
+                  onClick={() => onEditAnnotation(video)}
+                  size="small"
+                  variant="outlined"
+                >
+                  Edit
+                </Button>
               </TableCell>
             </TableRow>
           ))}

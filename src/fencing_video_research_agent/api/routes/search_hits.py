@@ -1,4 +1,4 @@
-"""Search-hit provenance routes for the read-only API."""
+"""Search-hit provenance routes for the API."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from fencing_video_research_agent.api.dependencies import get_api_read_runtime
+from fencing_video_research_agent.api.dependencies import get_api_runtime
 from fencing_video_research_agent.api.schemas import (
     SearchHitListItemResponse,
     SearchHitListResponse,
@@ -14,14 +14,14 @@ from fencing_video_research_agent.api.schemas import (
 from fencing_video_research_agent.application.inspect_storage import (
     ListSearchHitTableRowsRequest,
 )
-from fencing_video_research_agent.bootstrap import ApiReadRuntime
+from fencing_video_research_agent.bootstrap import ApiRuntime
 
 router = APIRouter(prefix="/api/search-hits", tags=["search-hits"])
 
 
 @router.get("", response_model=SearchHitListResponse)
 def list_search_hits(
-    runtime: Annotated[ApiReadRuntime, Depends(get_api_read_runtime)],
+    runtime: Annotated[ApiRuntime, Depends(get_api_runtime)],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     query_text: Annotated[str | None, Query()] = None,

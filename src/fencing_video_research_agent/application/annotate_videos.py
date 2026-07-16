@@ -87,6 +87,32 @@ class ClearAnnotationLabelRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class UpdateAnnotationRequest:
+    """Input for updating browser-editable annotation fields in one transaction."""
+
+    youtube_video_id: str
+    review_status: str | None = None
+    relevance_label: str | None = None
+    notes: str | None = None
+    update_review_status: bool = False
+    update_relevance_label: bool = False
+    update_notes: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "youtube_video_id", _require_youtube_video_id(self.youtube_video_id)
+        )
+        if not (self.update_review_status or self.update_relevance_label or self.update_notes):
+            msg = "at least one annotation field must be provided"
+            raise ValueError(msg)
+        if self.update_review_status and self.review_status is None:
+            msg = "review_status must not be null"
+            raise ValueError(msg)
+        if self.review_status is not None:
+            object.__setattr__(self, "review_status", self.review_status.strip())
+
+
+@dataclass(frozen=True, slots=True)
 class AnnotationWriteResult:
     """Result for annotation commands that persist a row."""
 
@@ -256,6 +282,57 @@ class ClearAnnotationLabelUseCase:
         )
 
 
+class UpdateAnnotationUseCase:
+    """Update browser-editable annotation fields in one atomic write."""
+
+    def __init__(self, *, unit_of_work_factory: UnitOfWorkFactory, clock: Clock) -> None:
+        self._unit_of_work_factory = unit_of_work_factory
+        self._clock = clock
+
+    def execute(self, request: UpdateAnnotationRequest) -> AnnotationWriteResult:
+        """Update only requested fields while preserving all other annotation data."""
+
+        review_status = (
+            _parse_review_status(request.review_status)
+            if request.update_review_status and request.review_status is not None
+            else None
+        )
+        relevance_label = (
+            _optional_relevance_label(request.relevance_label)
+            if request.update_relevance_label
+            else None
+        )
+        notes = _optional_notes_value(request.notes) if request.update_notes else None
+
+        with self._unit_of_work_factory() as unit_of_work:
+            _require_video_exists(unit_of_work, request.youtube_video_id)
+            annotation = _annotation_or_default(
+                unit_of_work.annotations.get_by_youtube_id(request.youtube_video_id),
+                youtube_video_id=request.youtube_video_id,
+                clock=self._clock,
+            )
+            next_review_status = annotation.review_status
+            if request.update_review_status and review_status is not None:
+                next_review_status = review_status
+            next_relevance_label = annotation.relevance_label
+            if request.update_relevance_label:
+                next_relevance_label = relevance_label
+            next_notes = annotation.notes
+            if request.update_notes:
+                next_notes = notes
+
+            updated = replace(
+                annotation,
+                review_status=next_review_status,
+                relevance_label=next_relevance_label,
+                notes=next_notes,
+                updated_at=self._clock.utcnow(),
+            )
+            unit_of_work.annotations.save(updated)
+            unit_of_work.commit()
+        return AnnotationWriteResult(annotation=updated)
+
+
 def _require_youtube_video_id(youtube_video_id: str) -> str:
     value = youtube_video_id.strip()
     if not value:
@@ -275,8 +352,26 @@ def _require_relevance_label(label: str) -> str:
     return value
 
 
+def _optional_relevance_label(label: str | None) -> str | None:
+    if label is None:
+        return None
+    value = label.strip()
+    if not value:
+        return None
+    if len(value) > MAX_RELEVANCE_LABEL_LENGTH:
+        msg = f"label must be at most {MAX_RELEVANCE_LABEL_LENGTH} characters"
+        raise ValueError(msg)
+    return value
+
+
 def _notes_value(notes: str) -> str | None:
     if not notes.strip():
+        return None
+    return notes
+
+
+def _optional_notes_value(notes: str | None) -> str | None:
+    if notes is None or not notes.strip():
         return None
     return notes
 

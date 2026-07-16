@@ -1,4 +1,4 @@
-"""FastAPI app factory for read-only research data endpoints."""
+"""FastAPI app factory for local research data endpoints."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from fencing_video_research_agent.api.routes import health, runs, search_hits, summary, videos
-from fencing_video_research_agent.bootstrap import build_api_read_runtime
+from fencing_video_research_agent.bootstrap import build_api_runtime
 from fencing_video_research_agent.infrastructure.migrations import ensure_database_current
 from fencing_video_research_agent.infrastructure.settings import AppSettings, load_settings
 
@@ -22,7 +22,7 @@ def create_app(
     database_url: str | None = None,
     run_migrations: bool = True,
 ) -> FastAPI:
-    """Create the read-only FastAPI app with injectable settings for tests."""
+    """Create the FastAPI app with injectable settings for tests."""
 
     resolved_settings = settings or load_settings(require_youtube_api_key=False)
     if database_url is not None:
@@ -31,7 +31,7 @@ def create_app(
     if run_migrations:
         ensure_database_current(resolved_settings.database_url)
 
-    runtime = build_api_read_runtime(resolved_settings)
+    runtime = build_api_runtime(resolved_settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -49,11 +49,11 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[LOCAL_FRONTEND_ORIGIN],
-        allow_methods=["GET"],
-        allow_headers=[],
+        allow_methods=["GET", "PATCH"],
+        allow_headers=["content-type"],
         allow_credentials=False,
     )
-    app.state.api_read_runtime = runtime
+    app.state.api_runtime = runtime
     app.include_router(health.router)
     app.include_router(summary.router)
     app.include_router(videos.router)

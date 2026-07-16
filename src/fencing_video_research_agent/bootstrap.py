@@ -16,6 +16,7 @@ from fencing_video_research_agent.application import (
     SetAnnotationNotesUseCase,
     SetAnnotationReviewStatusUseCase,
     ShowAnnotationUseCase,
+    UpdateAnnotationUseCase,
 )
 from fencing_video_research_agent.application.inspect_storage import (
     GetStoredDataSummaryUseCase,
@@ -85,12 +86,13 @@ class VideoInspectionRuntime:
 
 
 @dataclass(frozen=True, slots=True)
-class ApiReadRuntime:
-    """Runtime resources for read-only API workflows."""
+class ApiRuntime:
+    """Runtime resources for local API workflows."""
 
     summary: GetStoredDataSummaryUseCase
     list_video_table_rows: ListVideoTableRowsUseCase
     show_video: ShowStoredVideoUseCase
+    update_annotation: UpdateAnnotationUseCase
     list_collection_runs: ListCollectionRunsUseCase
     show_collection_run: ShowCollectionRunUseCase
     list_search_hit_table_rows: ListSearchHitTableRowsUseCase
@@ -242,16 +244,25 @@ def build_video_inspection_runtime(settings: AppSettings) -> VideoInspectionRunt
     )
 
 
-def build_api_read_runtime(settings: AppSettings) -> ApiReadRuntime:
-    """Wire read-only API use cases without constructing YouTube clients."""
+def build_api_runtime(settings: AppSettings) -> ApiRuntime:
+    """Wire local API use cases without constructing YouTube clients."""
 
+    clock = SystemClock()
     engine = create_database_engine(settings.database_url)
     session_factory = create_session_factory(engine)
     stored_data_reader = SqlAlchemyStoredDataReader(session_factory)
-    return ApiReadRuntime(
+
+    def unit_of_work_factory() -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(session_factory)
+
+    return ApiRuntime(
         summary=GetStoredDataSummaryUseCase(stored_data_reader=stored_data_reader),
         list_video_table_rows=ListVideoTableRowsUseCase(stored_data_reader=stored_data_reader),
         show_video=ShowStoredVideoUseCase(stored_data_reader=stored_data_reader),
+        update_annotation=UpdateAnnotationUseCase(
+            unit_of_work_factory=unit_of_work_factory,
+            clock=clock,
+        ),
         list_collection_runs=ListCollectionRunsUseCase(stored_data_reader=stored_data_reader),
         show_collection_run=ShowCollectionRunUseCase(stored_data_reader=stored_data_reader),
         list_search_hit_table_rows=ListSearchHitTableRowsUseCase(

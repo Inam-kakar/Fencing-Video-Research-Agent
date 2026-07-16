@@ -118,7 +118,7 @@ def test_build_video_inspection_runtime_does_not_create_youtube_client(
     assert fake_engine.disposed is True
 
 
-def test_build_api_read_runtime_does_not_create_youtube_client(
+def test_build_api_runtime_does_not_create_youtube_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
@@ -132,7 +132,7 @@ def test_build_api_read_runtime_does_not_create_youtube_client(
     )
 
     def fake_create_client(api_key: SecretStr) -> object:
-        raise AssertionError("API read runtime must not create YouTube clients")
+        raise AssertionError("API runtime must not create YouTube clients")
 
     def fake_create_engine(database_url: str) -> FakeEngine:
         calls.append(f"engine:{database_url}")
@@ -146,7 +146,7 @@ def test_build_api_read_runtime_does_not_create_youtube_client(
     monkeypatch.setattr(bootstrap, "create_database_engine", fake_create_engine)
     monkeypatch.setattr(bootstrap, "create_session_factory", fake_create_session_factory)
 
-    runtime = bootstrap.build_api_read_runtime(settings)
+    runtime = bootstrap.build_api_runtime(settings)
 
     assert calls == [
         "engine:sqlite:///tmp/research.sqlite",
@@ -155,6 +155,7 @@ def test_build_api_read_runtime_does_not_create_youtube_client(
     assert runtime.summary is not None
     assert runtime.list_video_table_rows is not None
     assert runtime.show_video is not None
+    assert runtime.update_annotation is not None
     assert runtime.list_collection_runs is not None
     assert runtime.show_collection_run is not None
     assert runtime.list_search_hit_table_rows is not None

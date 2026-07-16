@@ -18,7 +18,7 @@ export type VideoListItemResponse = {
   duration_seconds: number | null;
   published_at: string | null;
   view_count: number | null;
-  review_status: string | null;
+  review_status: ReviewStatus | null;
   relevance_label: string | null;
   video_url: string | null;
   first_seen_at: string;
@@ -30,6 +30,53 @@ export type VideoListResponse = {
   count: number;
   limit: number;
   offset: number;
+};
+
+export type ReviewStatus = "unreviewed" | "reviewed";
+
+export type VideoDetailResponse = {
+  youtube_video_id: string;
+  title: string;
+  description: string | null;
+  channel_id: string;
+  channel_title: string;
+  published_at: string | null;
+  duration_seconds: number | null;
+  view_count: number | null;
+  like_count: number | null;
+  comment_count: number | null;
+  tags: string[];
+  thumbnail_url: string | null;
+  video_url: string | null;
+  first_seen_at: string;
+  last_refreshed_at: string;
+  review_status: ReviewStatus | null;
+  notes: string | null;
+  relevance_label: string | null;
+  competition_name: string | null;
+  fencer_names: string[];
+  weapon_category: string | null;
+  event_notes: string | null;
+  annotation_updated_at: string | null;
+  discovery_run_count: number;
+  first_collection_run_started_at: string | null;
+  latest_collection_run_started_at: string | null;
+  first_query_text: string | null;
+  latest_query_text: string | null;
+};
+
+export type UpdateVideoAnnotationRequest = {
+  review_status?: ReviewStatus;
+  relevance_label?: string | null;
+  notes?: string | null;
+};
+
+export type VideoAnnotationResponse = {
+  youtube_video_id: string;
+  review_status: ReviewStatus;
+  relevance_label: string | null;
+  notes: string | null;
+  updated_at: string;
 };
 
 export type RunListItemResponse = {

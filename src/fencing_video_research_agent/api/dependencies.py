@@ -1,4 +1,4 @@
-"""FastAPI dependency helpers for read-only API routes."""
+"""FastAPI dependency helpers for API routes."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ from typing import cast
 
 from fastapi import Request
 
-from fencing_video_research_agent.bootstrap import ApiReadRuntime
+from fencing_video_research_agent.bootstrap import ApiRuntime
 
 
-def get_api_read_runtime(request: Request) -> ApiReadRuntime:
-    """Return the read-only API runtime attached by the app factory."""
+def get_api_runtime(request: Request) -> ApiRuntime:
+    """Return the API runtime attached by the app factory."""
 
-    return cast(ApiReadRuntime, request.app.state.api_read_runtime)
+    return cast(ApiRuntime, request.app.state.api_runtime)

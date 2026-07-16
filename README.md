@@ -8,8 +8,9 @@ through the official YouTube Data API. It stores local research data in SQLite,
 preserves search provenance, supports manual annotation, and exports video-level
 and search-hit-level CSV/JSON datasets for later analysis and provenance auditing.
 
-Implementation state: through Milestone 11D, including a read-only FastAPI backend
-API and React/Vite/MUI frontend browsing tables.
+Implementation state: through Milestone 11E, including a FastAPI backend API,
+React/Vite/MUI frontend browsing tables, and narrow browser annotation editing for
+stored videos.
 
 ## Table of Contents
 
@@ -24,7 +25,7 @@ API and React/Vite/MUI frontend browsing tables.
 - [Environment Setup](#environment-setup)
 - [Quick Start Demo](#quick-start-demo)
 - [CLI Commands](#cli-commands)
-- [Read-Only HTTP API](#read-only-http-api)
+- [HTTP API](#http-api)
 - [Frontend Dashboard](#frontend-dashboard)
 - [Data Model Summary](#data-model-summary)
 - [Research Workflow](#research-workflow)
@@ -63,8 +64,8 @@ video-AI experiments on top of a documented data foundation.
 | Manually annotate stored videos | `annotations show`, `set-status`, `set-notes`, `set-label`, `clear-label` | Implemented |
 | Export video-level CSV/JSON datasets | `export videos --format csv\|json` | Implemented |
 | Export search-hit provenance CSV/JSON datasets | `export search-hits --format csv\|json` | Implemented |
-| Serve read-only local database data over HTTP/JSON | FastAPI endpoints under `/api` | Implemented |
-| Browse dashboard data in browser | React, TypeScript, Vite, MUI | Read-only tables implemented |
+| Serve local database data over HTTP/JSON | FastAPI endpoints under `/api` | Read endpoints plus video annotation PATCH implemented |
+| Browse dashboard data in browser | React, TypeScript, Vite, MUI | Tables plus stored-video annotation editing implemented |
 | Run offline automated tests | `pytest`, Ruff, mypy | Implemented |
 
 ## What This Project Does Not Do Yet
@@ -75,7 +76,7 @@ video-AI experiments on top of a documented data foundation.
 | Computer vision | Not implemented |
 | Scoring detection | Not implemented |
 | Event detection | Not implemented |
-| Frontend editing workflows | Not implemented |
+| Broader frontend editing workflows beyond stored-video annotations | Not implemented |
 | Model training | Not implemented |
 | PostgreSQL deployment | Not implemented yet |
 | Scientific conclusions from the smoke test | Not claimed |
@@ -92,7 +93,7 @@ environment details.
 ```mermaid
 flowchart LR
     CLI["Typer CLI"] --> App["Application Use Cases"]
-    API["FastAPI Read-Only API"] --> App
+    API["FastAPI API"] --> App
     App --> Ports["Ports / Interfaces"]
     Ports --> Infra["Infrastructure Adapters"]
     Infra --> DB["SQLite Database"]
@@ -106,7 +107,7 @@ flowchart LR
 | Ports | Project-owned interfaces for gateways, repositories, readers, writers, clocks, and Unit of Work |
 | Infrastructure | Concrete SQLAlchemy, Alembic, SQLite, YouTube API, settings, and pandas export implementations |
 | Interface/CLI | Typer commands, argument parsing, user-facing output, and safe exit codes |
-| API | FastAPI routes and response schemas for read-only HTTP/JSON access |
+| API | FastAPI routes and response schemas for HTTP/JSON access and narrow annotation editing |
 | Bootstrap | Composition root that wires settings, adapters, repositories, and use cases |
 
 ## Data Flow
@@ -118,7 +119,7 @@ flowchart TD
     Collect --> UOW["Unit of Work"]
     UOW --> DB["SQLite Database"]
     DB --> Inspect["Inspection Commands"]
-    DB --> API["Read-Only FastAPI Endpoints"]
+    DB --> API["FastAPI Endpoints"]
     DB --> Annotate["Annotation Commands"]
     DB --> Export["Export Command"]
     Export --> Files["CSV / JSON Files"]
@@ -133,7 +134,7 @@ annotation, and export read or write only the local SQLite database.
 | --- | --- | --- |
 | Python 3.12 | Main language | Modern, readable backend and research tooling |
 | Typer | Command-line interface | Clear, testable CLI commands |
-| FastAPI | Read-only HTTP API | Backend foundation for a future React dashboard |
+| FastAPI | HTTP API | Backend foundation for the React dashboard |
 | Uvicorn | Local ASGI server | Runs the FastAPI app during local development |
 | React | Frontend UI skeleton | Browser-based dashboard foundation |
 | TypeScript | Frontend typing | Keeps API response handling explicit |
@@ -160,7 +161,7 @@ annotation, and export read or write only the local SQLite database.
 | `src/fencing_video_research_agent/ports` | Interfaces for external boundaries and replacement points |
 | `src/fencing_video_research_agent/infrastructure` | SQLAlchemy, Alembic, YouTube API, settings, and pandas export implementations |
 | `src/fencing_video_research_agent/interface` | Typer CLI entry point |
-| `src/fencing_video_research_agent/api` | Read-only FastAPI app, routes, dependencies, and response schemas |
+| `src/fencing_video_research_agent/api` | FastAPI app, routes, dependencies, and response schemas |
 | `frontend` | React, TypeScript, Vite, and MUI dashboard skeleton |
 | `alembic` | Database migration environment and revisions |
 | `tests` | Offline deterministic test suite |
@@ -251,10 +252,11 @@ Do not put a real API key in the command line. The API key belongs only in `.env
 | `export videos` | Export one row per stored video to CSV or JSON | No |
 | `export search-hits` | Export one row per search-hit provenance relationship to CSV or JSON | No |
 
-## Read-Only HTTP API
+## HTTP API
 
-Milestone 11B adds a backend-only FastAPI interface for future dashboard development.
-It reads from the same local SQLite database as the CLI and does not call YouTube.
+The FastAPI interface reads from the same local SQLite database as the CLI and does
+not call YouTube. Most endpoints are read-only. Milestone 11E adds one narrow local
+write endpoint for browser annotation editing.
 
 Run the local API server:
 
@@ -262,7 +264,7 @@ Run the local API server:
 .\.venv\Scripts\python.exe -m uvicorn "fencing_video_research_agent.api.main:create_app" --factory --reload
 ```
 
-Available read-only endpoints:
+Available endpoints:
 
 | Endpoint | Purpose | Requires YouTube API Key? |
 | --- | --- | --- |
@@ -270,19 +272,21 @@ Available read-only endpoints:
 | `GET /api/summary` | Dashboard counts for videos, runs, hits, and annotations | No |
 | `GET /api/videos` | Paginated stored-video table rows with optional `search` | No |
 | `GET /api/videos/{youtube_video_id}` | One stored video with metadata, annotation summary, and compact provenance | No |
+| `PATCH /api/videos/{youtube_video_id}/annotation` | Update `review_status`, `relevance_label`, and `notes` for one stored video | No |
 | `GET /api/runs` | Paginated collection-run table rows | No |
 | `GET /api/runs/{run_id}` | One collection run with returned videos | No |
 | `GET /api/search-hits` | Paginated search-hit provenance rows with optional `query_text` | No |
 
-The API is intentionally read-only. Annotation editing, collection, and export remain
-CLI workflows for now. Local-development CORS allows the Vite dev server at
-`http://localhost:5173` to call the API with read-only `GET` requests.
+Collection and export remain CLI workflows for now. Browser editing is limited to
+stored-video annotation summary fields. Local-development CORS allows the Vite dev
+server at `http://localhost:5173` to call the API with `GET` and `PATCH` requests.
 
 ## Frontend Dashboard
 
-The React, TypeScript, Vite, and MUI frontend calls only the read-only FastAPI API.
-It displays API health, summary metric cards, stored videos, collection runs, and
-search-hit provenance tables.
+The React, TypeScript, Vite, and MUI frontend calls only the FastAPI API. It displays
+API health, summary metric cards, stored videos, collection runs, and search-hit
+provenance tables. From the Videos tab, a researcher can edit only `review_status`,
+`relevance_label`, and `notes` for an already stored video.
 
 Install frontend dependencies:
 
@@ -311,8 +315,8 @@ VITE_API_BASE_URL=http://localhost:8000
 ```
 
 No YouTube API key belongs in frontend configuration. The frontend must not read the
-backend `.env` file, connect to SQLite, call YouTube, run exports, edit annotations,
-or trigger collection workflows directly.
+backend `.env` file, connect to SQLite, call YouTube, run exports, edit collection
+runs or search hits, or trigger collection workflows directly.
 
 ## Data Model Summary
 
@@ -441,7 +445,7 @@ The boundary scan should return no matches for the application and domain layers
 
 | Stage | Future Work |
 | --- | --- |
-| Current frontend milestone | React/Vite/MUI read-only browsing tables |
+| Current frontend milestone | React/Vite/MUI browsing tables with narrow video annotation editing |
 | Near term | Richer annotation protocol if the research method needs it |
 | Medium term | Larger controlled collection protocol for sabre-related searches |
 | Medium term | Richer dashboard details and researcher review views after API decisions |
@@ -450,9 +454,9 @@ The boundary scan should return no matches for the application and domain layers
 
 ## Project Status
 
-The project is a Phase 1 backend and research-data foundation implemented through
-Milestone 11D. It is suitable for continued research-software development, professor
-review, future dataset-building work, and incremental dashboard development.
+The project is a Phase 1 backend, frontend, and research-data foundation implemented
+through Milestone 11E. It is suitable for continued research-software development,
+professor review, future dataset-building work, and incremental dashboard development.
 
 It is not yet a full AI or video-analysis system. It does not detect fencing actions,
 analyze video content, train models, or claim scientific conclusions from the small

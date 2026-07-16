@@ -3,8 +3,8 @@
 This document describes the local demo workflow for the React, TypeScript, Vite, and
 MUI frontend dashboard.
 
-The frontend reads only from the local read-only FastAPI API. It does not call
-YouTube, does not connect to SQLite directly, and must not receive `YOUTUBE_API_KEY`.
+The frontend calls only the local FastAPI API. It does not call YouTube, does not
+connect to SQLite directly, and must not receive `YOUTUBE_API_KEY`.
 
 ## 1. Start the FastAPI API
 
@@ -57,7 +57,14 @@ Open the Vite local URL shown in the terminal. Confirm that:
 - The Search Hits tab loads a read-only provenance table or a readable empty state.
 - API errors show safe messages.
 - YouTube links are shown as links when video URLs are available.
-- No annotation editing controls, export buttons, or collection UI are present.
+- The Videos tab provides an edit action for stored-video annotation fields.
+- The annotation dialog loads the current video annotation.
+- Changing `review_status`, `relevance_label`, or `notes` and saving updates the
+  table after the dialog closes.
+- Refreshing the browser preserves the saved annotation values.
+- No edit controls are present on the Collection Runs tab.
+- No edit controls are present on the Search Hits tab.
+- No export buttons or collection UI are present.
 
 ## Configuration
 
@@ -69,3 +76,15 @@ VITE_API_BASE_URL=http://localhost:8000
 
 Do not put backend secrets in frontend configuration. In particular, do not place
 `YOUTUBE_API_KEY` in any frontend environment file.
+
+## Annotation Editing Scope
+
+Browser annotation editing is intentionally limited to already stored videos and only
+these fields:
+
+- `review_status`
+- `relevance_label`
+- `notes`
+
+The frontend must not edit YouTube metadata, collection runs, search hits, export
+files, richer annotation fields, or collection/search workflows.

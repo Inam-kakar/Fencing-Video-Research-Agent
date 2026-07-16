@@ -3,6 +3,9 @@ import type {
   RunListResponse,
   SearchHitListResponse,
   SummaryResponse,
+  UpdateVideoAnnotationRequest,
+  VideoAnnotationResponse,
+  VideoDetailResponse,
   VideoListResponse,
 } from "./types";
 
@@ -31,12 +34,27 @@ function getApiBaseUrl(): string {
   return baseUrl.replace(/\/+$/, "");
 }
 
-async function fetchJson<TResponse>(path: string): Promise<TResponse> {
+type FetchJsonOptions = {
+  method?: "GET" | "PATCH";
+  body?: unknown;
+};
+
+async function fetchJson<TResponse>(
+  path: string,
+  options: FetchJsonOptions = {},
+): Promise<TResponse> {
+  const method = options.method ?? "GET";
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-    },
+    method,
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
 
   if (!response.ok) {
@@ -67,6 +85,23 @@ export function getSummary(): Promise<SummaryResponse> {
 export function getVideos({ limit, offset, search }: ListVideosParams): Promise<VideoListResponse> {
   const query = toQueryString({ limit, offset, search });
   return fetchJson<VideoListResponse>(`/api/videos?${query}`);
+}
+
+export function getVideo(youtubeVideoId: string): Promise<VideoDetailResponse> {
+  return fetchJson<VideoDetailResponse>(`/api/videos/${encodeURIComponent(youtubeVideoId)}`);
+}
+
+export function updateVideoAnnotation(
+  youtubeVideoId: string,
+  payload: UpdateVideoAnnotationRequest,
+): Promise<VideoAnnotationResponse> {
+  return fetchJson<VideoAnnotationResponse>(
+    `/api/videos/${encodeURIComponent(youtubeVideoId)}/annotation`,
+    {
+      method: "PATCH",
+      body: payload,
+    },
+  );
 }
 
 export function getRuns({ limit, offset }: ListRunsParams): Promise<RunListResponse> {

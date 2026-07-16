@@ -1,4 +1,4 @@
-"""Collection-run routes for the read-only API."""
+"""Collection-run routes for the API."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-from fencing_video_research_agent.api.dependencies import get_api_read_runtime
+from fencing_video_research_agent.api.dependencies import get_api_runtime
 from fencing_video_research_agent.api.schemas import (
     RunDetailResponse,
     RunListItemResponse,
@@ -17,14 +17,14 @@ from fencing_video_research_agent.application.inspect_storage import (
     ShowCollectionRunRequest,
     StoredCollectionRunNotFoundError,
 )
-from fencing_video_research_agent.bootstrap import ApiReadRuntime
+from fencing_video_research_agent.bootstrap import ApiRuntime
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 
 @router.get("", response_model=RunListResponse)
 def list_runs(
-    runtime: Annotated[ApiReadRuntime, Depends(get_api_read_runtime)],
+    runtime: Annotated[ApiRuntime, Depends(get_api_runtime)],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> RunListResponse:
@@ -39,7 +39,7 @@ def list_runs(
 @router.get("/{run_id}", response_model=RunDetailResponse)
 def show_run(
     run_id: Annotated[int, Path(ge=1)],
-    runtime: Annotated[ApiReadRuntime, Depends(get_api_read_runtime)],
+    runtime: Annotated[ApiRuntime, Depends(get_api_runtime)],
 ) -> RunDetailResponse:
     """Return one collection-run detail with returned videos."""
 

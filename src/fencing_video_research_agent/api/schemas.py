@@ -1,12 +1,13 @@
-"""Pydantic response schemas for the read-only FastAPI interface."""
+"""Pydantic schemas for the FastAPI interface."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Self
+from typing import Literal, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, model_validator
 
+from fencing_video_research_agent.domain import ResearchAnnotation
 from fencing_video_research_agent.ports.stored_data import (
     StoredCollectionRunDetail,
     StoredCollectionRunHit,
@@ -156,6 +157,51 @@ class VideoDetailResponse(BaseModel):
             latest_collection_run_started_at=detail.latest_collection_run_started_at,
             first_query_text=detail.first_query_text,
             latest_query_text=detail.latest_query_text,
+        )
+
+
+class UpdateVideoAnnotationRequest(BaseModel):
+    """Request body for browser-editable annotation fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    review_status: Literal["unreviewed", "reviewed"] | None = None
+    relevance_label: str | None = None
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_update_fields(self) -> Self:
+        """Require at least one supplied field and a non-null review status."""
+
+        provided_fields = {"review_status", "relevance_label", "notes"} & self.model_fields_set
+        if not provided_fields:
+            msg = "at least one annotation field must be provided"
+            raise ValueError(msg)
+        if "review_status" in self.model_fields_set and self.review_status is None:
+            msg = "review_status must be unreviewed or reviewed"
+            raise ValueError(msg)
+        return self
+
+
+class VideoAnnotationResponse(BaseModel):
+    """Updated annotation summary for one stored video."""
+
+    youtube_video_id: str
+    review_status: str
+    relevance_label: str | None
+    notes: str | None
+    updated_at: datetime
+
+    @classmethod
+    def from_annotation(cls, annotation: ResearchAnnotation) -> Self:
+        """Create a response from a domain annotation."""
+
+        return cls(
+            youtube_video_id=annotation.youtube_video_id,
+            review_status=annotation.review_status.value,
+            relevance_label=annotation.relevance_label,
+            notes=annotation.notes,
+            updated_at=annotation.updated_at,
         )
 
 

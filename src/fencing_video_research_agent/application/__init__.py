@@ -16,6 +16,8 @@ from fencing_video_research_agent.application.annotate_videos import (
     ShowAnnotationRequest,
     ShowAnnotationResult,
     ShowAnnotationUseCase,
+    UpdateAnnotationRequest,
+    UpdateAnnotationUseCase,
 )
 from fencing_video_research_agent.application.collect_videos import (
     CollectVideosRequest,
@@ -92,4 +94,6 @@ __all__ = [
     "ShowStoredVideoUseCase",
     "StoredCollectionRunNotFoundError",
     "StoredVideoNotFoundError",
+    "UpdateAnnotationRequest",
+    "UpdateAnnotationUseCase",
 ]
