@@ -19,6 +19,8 @@ controlled browser metadata collection through the backend.
 - [What This Project Does Not Do Yet](#what-this-project-does-not-do-yet)
 - [Architecture Overview](#architecture-overview)
 - [Data Flow](#data-flow)
+- [Provenance Workflow](#provenance-workflow)
+- [Browser Request Sequence](#browser-request-sequence)
 - [Tech Stack](#tech-stack)
 - [Repository Structure](#repository-structure)
 - [Installation](#installation)
@@ -35,6 +37,7 @@ controlled browser metadata collection through the backend.
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
 - [Project Status](#project-status)
+- [Run the Project Locally](#run-the-project-locally)
 
 ## Project Overview
 
@@ -89,16 +92,22 @@ is not a large scientific dataset.
 
 The project follows a lightweight clean architecture. The domain and application
 layers stay independent of SQLAlchemy, Google API clients, Typer, pandas, and local
-environment details.
+environment details. The CLI and browser API are entry points; the application layer
+coordinates use cases through ports; infrastructure adapters handle technical systems.
 
 ```mermaid
-flowchart LR
-    CLI["Typer CLI"] --> App["Application Use Cases"]
-    API["FastAPI API"] --> App
-    App --> Ports["Ports / Interfaces"]
-    Ports --> Infra["Infrastructure Adapters"]
-    Infra --> DB["SQLite Database"]
-    Infra --> YT["Official YouTube Data API"]
+flowchart TD
+    Researcher["Researcher"] --> Browser["React Vite frontend"]
+    Researcher --> CLI["Typer CLI"]
+    Browser --> API["FastAPI API"]
+    API --> UseCases["Application use cases"]
+    CLI --> UseCases
+    UseCases --> Domain["Domain layer"]
+    UseCases --> Ports["Ports and interfaces"]
+    Adapters["Infrastructure adapters"] --> Ports
+    Adapters --> SQLite["SQLite database"]
+    Adapters --> YouTube["Official YouTube Data API"]
+    Adapters --> ExportFiles["CSV and JSON files"]
 ```
 
 | Layer | Responsibility |
@@ -115,21 +124,83 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    YT["YouTube Data API"] --> Gateway["YouTube Gateway"]
-    Gateway --> Collect["Collection Use Case"]
-    Collect --> UOW["Unit of Work"]
-    UOW --> DB["SQLite Database"]
-    DB --> Inspect["Inspection Commands"]
-    DB --> API["FastAPI Endpoints"]
-    DB --> Annotate["Annotation Commands"]
-    DB --> Export["Export Command"]
-    Export --> Files["CSV / JSON Files"]
+    Researcher["Researcher"] --> Browser["Browser dashboard"]
+    Researcher --> CLI["Typer CLI"]
+    Browser --> API["FastAPI API"]
+    API --> Collection["Collection use case"]
+    CLI --> Collection
+    Collection --> Gateway["YouTube gateway"]
+    Gateway --> YouTube["Official YouTube Data API"]
+    Collection --> UnitOfWork["Unit of Work"]
+    UnitOfWork --> Database["SQLite database"]
+    API --> Inspection["Inspection"]
+    CLI --> Inspection
+    Inspection --> Database
+    API --> Annotation["Annotation"]
+    CLI --> Annotation
+    Annotation --> UnitOfWork
+    API --> Export["Export"]
+    CLI --> Export
+    Export --> Database
+    Export --> Files["CSV and JSON files"]
 ```
 
 Collection is the only workflow that calls the YouTube Data API. Inspection,
 annotation, and export read or write only the local SQLite database. Browser
 collection requests go through the backend collection use case; the frontend never
 calls YouTube directly.
+
+## Provenance Workflow
+
+```mermaid
+flowchart LR
+    Query["Search query"] --> Run["Collection run"]
+    Run --> Hit["Search hit"]
+    Hit --> Video["Video"]
+    Video --> Metadata["Latest YouTube metadata"]
+    Video --> Annotation["Research annotation"]
+```
+
+The project stores the latest YouTube metadata separately from researcher annotations.
+Repeated collection can discover the same video again without duplicating the video
+record, while every search-hit relationship remains auditable through its collection
+run and search query.
+
+## Browser Request Sequence
+
+```mermaid
+sequenceDiagram
+    participant Researcher
+    participant Browser
+    participant API
+    participant UseCase
+    participant Gateway
+    participant YouTube
+    participant Database
+    participant CLI
+    Researcher->>Browser: Inspect stored videos
+    Browser->>API: GET /api/videos
+    API->>Database: Read SQLite records
+    API-->>Browser: Return stored videos
+    Researcher->>Browser: Save annotation
+    Browser->>API: PATCH /api/videos annotation
+    API->>Database: Write annotation record
+    API-->>Browser: Return updated annotation
+    Researcher->>Browser: Submit collection query
+    Browser->>API: POST /api/collection-runs
+    API->>UseCase: Run collection workflow
+    UseCase->>Gateway: Request metadata collection
+    Gateway->>YouTube: Call YouTube API
+    UseCase->>Database: Store videos and provenance
+    API-->>Browser: Return collection summary
+    Researcher->>CLI: Run export command
+    CLI->>Database: Read export rows
+    CLI-->>Researcher: Write CSV or JSON file
+```
+
+The frontend sends only project-owned request fields to FastAPI. It never receives
+`YOUTUBE_API_KEY`, never opens the SQLite database, and never talks to YouTube
+directly.
 
 ## Tech Stack
 
@@ -156,6 +227,49 @@ calls YouTube directly.
 | `python-dotenv` / settings loading support | Local `.env` loading | Keeps machine-specific configuration outside source code |
 
 ## Repository Structure
+
+Selected tracked structure:
+
+```text
+.
+|-- AGENTS.md
+|-- README.md
+|-- pyproject.toml
+|-- alembic/
+|   |-- env.py
+|   `-- versions/
+|-- data/
+|   `-- exports/
+|-- docs/
+|   |-- data-model.md
+|   |-- decisions/
+|   |-- frontend-demo.md
+|   |-- manual-smoke-test.md
+|   |-- project-brief.md
+|   `-- research/
+|-- frontend/
+|   |-- package.json
+|   |-- src/
+|   |   |-- api/
+|   |   |-- components/
+|   |   `-- pages/
+|   `-- vite.config.ts
+|-- src/
+|   `-- fencing_video_research_agent/
+|       |-- api/
+|       |-- application/
+|       |-- domain/
+|       |-- infrastructure/
+|       |-- interface/
+|       `-- ports/
+`-- tests/
+    |-- api/
+    |-- application/
+    |-- domain/
+    |-- infrastructure/
+    |-- interface/
+    `-- ports/
+```
 
 | Path | Purpose |
 | --- | --- |
@@ -421,6 +535,16 @@ Run the full validation suite:
 .\.venv\Scripts\python.exe -m mypy src
 ```
 
+Run the frontend type-check and production build:
+
+```powershell
+cd frontend
+npm run build
+cd ..
+```
+
+No frontend unit-test script is currently configured in `frontend/package.json`.
+
 Architecture boundary scan:
 
 ```powershell
@@ -471,3 +595,195 @@ professor review, future dataset-building work, and incremental dashboard develo
 It is not yet a full AI or video-analysis system. It does not detect fencing actions,
 analyze video content, train models, or claim scientific conclusions from the small
 manual smoke test.
+
+## Run the Project Locally
+
+This section is a complete local setup guide for a new checkout. It uses the
+repository's current Python package metadata, CLI entry point, FastAPI factory, and
+frontend package scripts.
+
+### Prerequisites
+
+| Tool | Version or Requirement |
+| --- | --- |
+| Python | 3.12 |
+| Git | Any recent version |
+| Node.js and npm | Required for the React/Vite frontend |
+| YouTube Data API key | Required only for collection workflows |
+
+### Clone the Repository
+
+```powershell
+git clone https://github.com/Inam-kakar/Fencing-Video-Research-Agent.git
+cd Fencing-Video-Research-Agent
+```
+
+### Create and Install the Python Environment
+
+Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```
+
+macOS or Linux:
+
+```bash
+python3.12 -m venv .venv
+./.venv/bin/python -m pip install -e ".[dev]"
+```
+
+The editable install command is supported by `pyproject.toml`. It installs the
+backend package, the CLI entry point, and the development tools used by the validation
+suite.
+
+### Configure Environment Variables
+
+Copy the placeholder environment file and fill it locally:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Expected local values:
+
+```text
+YOUTUBE_API_KEY=replace_with_your_api_key
+DATABASE_URL=sqlite:///data/fencing_video_research.db
+LOG_LEVEL=INFO
+```
+
+Use a real YouTube key only in `.env`. The frontend must not receive this key. Read,
+annotation, inspection, and export workflows do not require `YOUTUBE_API_KEY`.
+
+### Initialize the Database
+
+No standalone migration command is currently exposed. The CLI and FastAPI composition
+root run the Alembic migration path when they start against the configured SQLite
+database.
+
+To create or update the local database through the CLI without calling YouTube:
+
+```powershell
+fencing-video-research-agent videos list
+```
+
+To create or update it through the API startup path:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn "fencing_video_research_agent.api.main:create_app" --factory --reload
+```
+
+The default SQLite file is `data/fencing_video_research.db` unless `DATABASE_URL`
+points somewhere else.
+
+### Start the Backend API
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn "fencing_video_research_agent.api.main:create_app" --factory --reload
+```
+
+macOS or Linux:
+
+```bash
+./.venv/bin/python -m uvicorn "fencing_video_research_agent.api.main:create_app" --factory --reload
+```
+
+Local API URLs:
+
+- API base: `http://localhost:8000`
+- Health check: `http://localhost:8000/health`
+- Interactive docs: `http://localhost:8000/docs`
+
+### Start the Frontend Dashboard
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+The Vite dashboard runs at `http://localhost:5173` by default and calls the backend
+API at `http://localhost:8000`. If needed, set:
+
+```text
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+### Run a Small Collection Demo
+
+Collection calls the official YouTube Data API through the backend. Keep `max-results`
+small during manual testing to limit quota use.
+
+CLI collection:
+
+```powershell
+fencing-video-research-agent collect "sabre fencing final" --max-results 5
+```
+
+Browser collection:
+
+1. Start the backend API.
+2. Start the frontend dashboard.
+3. Open `http://localhost:5173`.
+4. Use the Videos page collection form with a short query and a small result limit.
+
+### Inspect, Annotate, and Export
+
+```powershell
+fencing-video-research-agent videos list
+fencing-video-research-agent runs list
+fencing-video-research-agent annotations show <youtube_video_id>
+fencing-video-research-agent annotations set-status <youtube_video_id> reviewed
+fencing-video-research-agent annotations set-notes <youtube_video_id> --notes "Useful sabre bout."
+fencing-video-research-agent export videos --format csv --overwrite
+fencing-video-research-agent export search-hits --format csv --overwrite
+```
+
+Generated export files go under `data/exports/` by default and are ignored by Git.
+
+### Validate the Project
+
+Backend validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy src
+```
+
+Architecture boundary scan:
+
+```powershell
+rg -n "fastapi|starlette|googleapiclient|sqlalchemy|alembic|YOUTUBE_API_KEY|dotenv|os\.environ" src\fencing_video_research_agent\application src\fencing_video_research_agent\domain
+```
+
+Frontend validation:
+
+```powershell
+cd frontend
+npm run build
+cd ..
+```
+
+`npm run build` performs the TypeScript check and then builds the Vite frontend. No
+frontend unit-test script is currently configured.
+
+### Stop Local Services
+
+Use `Ctrl+C` in the terminal running Uvicorn and in the terminal running Vite. If you
+started the backend and frontend in separate terminals, stop both.
+
+### Troubleshooting
+
+| Symptom | Likely Cause | What To Check |
+| --- | --- | --- |
+| `YOUTUBE_API_KEY` error during collection | Missing or invalid API key | Confirm `.env` exists and contains only your local key |
+| Browser table does not load | Backend API is not running | Open `http://localhost:8000/health` |
+| Browser cannot reach API | API base URL mismatch | Check `VITE_API_BASE_URL` and CORS local settings |
+| No videos appear after setup | Database is empty | Run a small collection demo or inspect the configured `DATABASE_URL` |
+| Export refuses to overwrite | Output file already exists | Add `--overwrite` or choose a new `--output` path |
