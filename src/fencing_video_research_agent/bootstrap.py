@@ -93,6 +93,7 @@ class ApiRuntime:
     list_video_table_rows: ListVideoTableRowsUseCase
     show_video: ShowStoredVideoUseCase
     update_annotation: UpdateAnnotationUseCase
+    collect_videos: CollectVideosUseCase | None
     list_collection_runs: ListCollectionRunsUseCase
     show_collection_run: ShowCollectionRunUseCase
     list_search_hit_table_rows: ListSearchHitTableRowsUseCase
@@ -245,7 +246,7 @@ def build_video_inspection_runtime(settings: AppSettings) -> VideoInspectionRunt
 
 
 def build_api_runtime(settings: AppSettings) -> ApiRuntime:
-    """Wire local API use cases without constructing YouTube clients."""
+    """Wire local API use cases and the optional collection workflow."""
 
     clock = SystemClock()
     engine = create_database_engine(settings.database_url)
@@ -255,6 +256,16 @@ def build_api_runtime(settings: AppSettings) -> ApiRuntime:
     def unit_of_work_factory() -> SqlAlchemyUnitOfWork:
         return SqlAlchemyUnitOfWork(session_factory)
 
+    collect_videos: CollectVideosUseCase | None = None
+    if settings.youtube_api_key.get_secret_value().strip():
+        youtube_client = create_youtube_data_api_client(settings.youtube_api_key)
+        youtube_gateway = YouTubeDataApiGateway(client=youtube_client, clock=clock)
+        collect_videos = CollectVideosUseCase(
+            youtube_gateway=youtube_gateway,
+            unit_of_work_factory=unit_of_work_factory,
+            clock=clock,
+        )
+
     return ApiRuntime(
         summary=GetStoredDataSummaryUseCase(stored_data_reader=stored_data_reader),
         list_video_table_rows=ListVideoTableRowsUseCase(stored_data_reader=stored_data_reader),
@@ -263,6 +274,7 @@ def build_api_runtime(settings: AppSettings) -> ApiRuntime:
             unit_of_work_factory=unit_of_work_factory,
             clock=clock,
         ),
+        collect_videos=collect_videos,
         list_collection_runs=ListCollectionRunsUseCase(stored_data_reader=stored_data_reader),
         show_collection_run=ShowCollectionRunUseCase(stored_data_reader=stored_data_reader),
         list_search_hit_table_rows=ListSearchHitTableRowsUseCase(

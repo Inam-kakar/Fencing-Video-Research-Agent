@@ -15,6 +15,7 @@ from fencing_video_research_agent.domain import (
 )
 from fencing_video_research_agent.ports import (
     Clock,
+    CollectionRunRecordId,
     UnitOfWork,
     YouTubeGateway,
     YouTubeSearchRequest,
@@ -48,6 +49,7 @@ class CollectVideosRequest:
 class CollectVideosResult:
     """Summary counts for one completed collection use case."""
 
+    collection_run_id: CollectionRunRecordId
     query_text: str
     requested_max_results: int
     search_result_count: int
@@ -134,6 +136,7 @@ class CollectVideosUseCase:
             unit_of_work.commit()
 
         return CollectVideosResult(
+            collection_run_id=collection_run_id,
             query_text=request.query_text,
             requested_max_results=request.max_results,
             search_result_count=len(search_results),

@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getVideo, getVideos, updateVideoAnnotation } from "../api/client";
 import type {
+  CollectionRunCreateResponse,
   UpdateVideoAnnotationRequest,
   VideoDetailResponse,
   VideoListItemResponse,
   VideoListResponse,
 } from "../api/types";
 import { AnnotationEditDialog } from "../components/AnnotationEditDialog";
+import { CollectionRunForm } from "../components/CollectionRunForm";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { PageHeader } from "../components/PageHeader";
@@ -110,10 +112,26 @@ export function VideosPage() {
       });
   }
 
+  function handleCollectionCreated(result: CollectionRunCreateResponse) {
+    setSearchInput(result.query);
+    setAppliedSearch(result.query);
+    setSuccessMessage(
+      `Collection completed: ${result.videos_stored} videos stored and ${result.search_hits_recorded} search hits recorded.`,
+    );
+    if (appliedSearch === result.query) {
+      loadVideos();
+    }
+  }
+
+  const showNoLocalResults =
+    videosState.status === "ready" &&
+    videosState.videos.items.length === 0 &&
+    appliedSearch.trim() !== "";
+
   return (
     <Stack spacing={3}>
       <PageHeader
-        description="Browse stored video metadata from the local read-only API."
+        description="Browse stored video metadata and collect controlled YouTube metadata through the backend."
         title="Stored Videos"
       />
       <Stack
@@ -137,6 +155,13 @@ export function VideosPage() {
       <Alert severity="info">
         Showing up to {PAGE_LIMIT} stored videos from the current API query.
       </Alert>
+      {showNoLocalResults ? (
+        <Alert severity="warning">No stored videos found for this search.</Alert>
+      ) : null}
+      <CollectionRunForm
+        initialQuery={appliedSearch || searchInput}
+        onCollected={handleCollectionCreated}
+      />
       {videosState.status === "loading" ? <LoadingState /> : null}
       {videosState.status === "error" ? (
         <ErrorState message={videosState.message} onRetry={loadVideos} />

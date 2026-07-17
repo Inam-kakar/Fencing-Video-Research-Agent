@@ -15,6 +15,7 @@ from fencing_video_research_agent.infrastructure.migrations import MigrationErro
 from fencing_video_research_agent.infrastructure.settings import AppSettings, ConfigurationError
 from fencing_video_research_agent.interface import cli
 from fencing_video_research_agent.ports import (
+    CollectionRunRecordId,
     PermanentYouTubeGatewayError,
     TransientYouTubeGatewayError,
 )
@@ -52,6 +53,7 @@ class FakeUseCase:
         if self.error is not None:
             raise self.error
         return CollectVideosResult(
+            collection_run_id=CollectionRunRecordId(1),
             query_text=request.query_text,
             requested_max_results=request.max_results,
             search_result_count=3,

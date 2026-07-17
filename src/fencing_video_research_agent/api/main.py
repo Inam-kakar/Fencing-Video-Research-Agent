@@ -8,7 +8,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fencing_video_research_agent.api.routes import health, runs, search_hits, summary, videos
+from fencing_video_research_agent.api.routes import (
+    collection_runs,
+    health,
+    runs,
+    search_hits,
+    summary,
+    videos,
+)
 from fencing_video_research_agent.bootstrap import build_api_runtime
 from fencing_video_research_agent.infrastructure.migrations import ensure_database_current
 from fencing_video_research_agent.infrastructure.settings import AppSettings, load_settings
@@ -49,13 +56,14 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[LOCAL_FRONTEND_ORIGIN],
-        allow_methods=["GET", "PATCH"],
+        allow_methods=["GET", "PATCH", "POST"],
         allow_headers=["content-type"],
         allow_credentials=False,
     )
     app.state.api_runtime = runtime
     app.include_router(health.router)
     app.include_router(summary.router)
+    app.include_router(collection_runs.router)
     app.include_router(videos.router)
     app.include_router(runs.router)
     app.include_router(search_hits.router)

@@ -1,1 +1,1 @@
-"""Route modules for the read-only FastAPI interface."""
+"""Route modules for local research-data API workflows."""

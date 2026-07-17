@@ -8,9 +8,9 @@ through the official YouTube Data API. It stores local research data in SQLite,
 preserves search provenance, supports manual annotation, and exports video-level
 and search-hit-level CSV/JSON datasets for later analysis and provenance auditing.
 
-Implementation state: through Milestone 11E, including a FastAPI backend API,
-React/Vite/MUI frontend browsing tables, and narrow browser annotation editing for
-stored videos.
+Implementation state: through Milestone 11F, including a FastAPI backend API,
+React/Vite/MUI frontend browsing tables, narrow browser annotation editing, and
+controlled browser metadata collection through the backend.
 
 ## Table of Contents
 
@@ -64,8 +64,8 @@ video-AI experiments on top of a documented data foundation.
 | Manually annotate stored videos | `annotations show`, `set-status`, `set-notes`, `set-label`, `clear-label` | Implemented |
 | Export video-level CSV/JSON datasets | `export videos --format csv\|json` | Implemented |
 | Export search-hit provenance CSV/JSON datasets | `export search-hits --format csv\|json` | Implemented |
-| Serve local database data over HTTP/JSON | FastAPI endpoints under `/api` | Read endpoints plus video annotation PATCH implemented |
-| Browse dashboard data in browser | React, TypeScript, Vite, MUI | Tables plus stored-video annotation editing implemented |
+| Serve local database data over HTTP/JSON | FastAPI endpoints under `/api` | Read endpoints, annotation PATCH, and controlled collection POST implemented |
+| Browse dashboard data in browser | React, TypeScript, Vite, MUI | Tables, stored-video annotation editing, and controlled metadata collection implemented |
 | Run offline automated tests | `pytest`, Ruff, mypy | Implemented |
 
 ## What This Project Does Not Do Yet
@@ -77,6 +77,7 @@ video-AI experiments on top of a documented data foundation.
 | Scoring detection | Not implemented |
 | Event detection | Not implemented |
 | Broader frontend editing workflows beyond stored-video annotations | Not implemented |
+| Arbitrary browser YouTube API parameter editing | Not implemented |
 | Model training | Not implemented |
 | PostgreSQL deployment | Not implemented yet |
 | Scientific conclusions from the smoke test | Not claimed |
@@ -107,7 +108,7 @@ flowchart LR
 | Ports | Project-owned interfaces for gateways, repositories, readers, writers, clocks, and Unit of Work |
 | Infrastructure | Concrete SQLAlchemy, Alembic, SQLite, YouTube API, settings, and pandas export implementations |
 | Interface/CLI | Typer commands, argument parsing, user-facing output, and safe exit codes |
-| API | FastAPI routes and response schemas for HTTP/JSON access and narrow annotation editing |
+| API | FastAPI routes and response schemas for HTTP/JSON access, annotation editing, and controlled collection |
 | Bootstrap | Composition root that wires settings, adapters, repositories, and use cases |
 
 ## Data Flow
@@ -126,7 +127,9 @@ flowchart TD
 ```
 
 Collection is the only workflow that calls the YouTube Data API. Inspection,
-annotation, and export read or write only the local SQLite database.
+annotation, and export read or write only the local SQLite database. Browser
+collection requests go through the backend collection use case; the frontend never
+calls YouTube directly.
 
 ## Tech Stack
 
@@ -254,9 +257,11 @@ Do not put a real API key in the command line. The API key belongs only in `.env
 
 ## HTTP API
 
-The FastAPI interface reads from the same local SQLite database as the CLI and does
-not call YouTube. Most endpoints are read-only. Milestone 11E adds one narrow local
-write endpoint for browser annotation editing.
+The FastAPI interface uses the same local SQLite database as the CLI. Ordinary read
+endpoints and annotation editing operate only on local database records.
+`POST /api/collection-runs` is the one API workflow that calls the official YouTube
+Data API, and it does so through the backend collection use case. The frontend never
+calls YouTube directly and never receives `YOUTUBE_API_KEY`.
 
 Run the local API server:
 
@@ -273,20 +278,24 @@ Available endpoints:
 | `GET /api/videos` | Paginated stored-video table rows with optional `search` | No |
 | `GET /api/videos/{youtube_video_id}` | One stored video with metadata, annotation summary, and compact provenance | No |
 | `PATCH /api/videos/{youtube_video_id}/annotation` | Update `review_status`, `relevance_label`, and `notes` for one stored video | No |
+| `POST /api/collection-runs` | Collect YouTube metadata for one controlled query and record provenance | Yes, backend only |
 | `GET /api/runs` | Paginated collection-run table rows | No |
 | `GET /api/runs/{run_id}` | One collection run with returned videos | No |
 | `GET /api/search-hits` | Paginated search-hit provenance rows with optional `query_text` | No |
 
-Collection and export remain CLI workflows for now. Browser editing is limited to
-stored-video annotation summary fields. Local-development CORS allows the Vite dev
-server at `http://localhost:5173` to call the API with `GET` and `PATCH` requests.
+Export remains a CLI workflow for now. Browser editing is limited to stored-video
+annotation summary fields. Browser collection is limited to `query` and
+`max_results`. Local-development CORS allows the Vite dev server at
+`http://localhost:5173` to call the API with `GET`, `PATCH`, and `POST` requests.
 
 ## Frontend Dashboard
 
 The React, TypeScript, Vite, and MUI frontend calls only the FastAPI API. It displays
 API health, summary metric cards, stored videos, collection runs, and search-hit
 provenance tables. From the Videos tab, a researcher can edit only `review_status`,
-`relevance_label`, and `notes` for an already stored video.
+`relevance_label`, and `notes` for an already stored video. The Videos tab can also
+trigger controlled backend metadata collection for one query and capped
+`max_results`.
 
 Install frontend dependencies:
 
@@ -316,7 +325,8 @@ VITE_API_BASE_URL=http://localhost:8000
 
 No YouTube API key belongs in frontend configuration. The frontend must not read the
 backend `.env` file, connect to SQLite, call YouTube, run exports, edit collection
-runs or search hits, or trigger collection workflows directly.
+runs or search hits, or send arbitrary YouTube API parameters. Browser collection
+requests go only to FastAPI and include only `query` and `max_results`.
 
 ## Data Model Summary
 
@@ -445,7 +455,7 @@ The boundary scan should return no matches for the application and domain layers
 
 | Stage | Future Work |
 | --- | --- |
-| Current frontend milestone | React/Vite/MUI browsing tables with narrow video annotation editing |
+| Current frontend milestone | React/Vite/MUI browsing tables, annotation editing, and controlled browser collection |
 | Near term | Richer annotation protocol if the research method needs it |
 | Medium term | Larger controlled collection protocol for sabre-related searches |
 | Medium term | Richer dashboard details and researcher review views after API decisions |
@@ -455,7 +465,7 @@ The boundary scan should return no matches for the application and domain layers
 ## Project Status
 
 The project is a Phase 1 backend, frontend, and research-data foundation implemented
-through Milestone 11E. It is suitable for continued research-software development,
+through Milestone 11F. It is suitable for continued research-software development,
 professor review, future dataset-building work, and incremental dashboard development.
 
 It is not yet a full AI or video-analysis system. It does not detect fencing actions,

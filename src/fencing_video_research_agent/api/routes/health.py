@@ -1,4 +1,4 @@
-"""Health-check route for the read-only API."""
+"""Health-check route for the local FastAPI interface."""
 
 from __future__ import annotations
 

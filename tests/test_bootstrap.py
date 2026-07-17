@@ -156,9 +156,55 @@ def test_build_api_runtime_does_not_create_youtube_client(
     assert runtime.list_video_table_rows is not None
     assert runtime.show_video is not None
     assert runtime.update_annotation is not None
+    assert runtime.collect_videos is None
     assert runtime.list_collection_runs is not None
     assert runtime.show_collection_run is not None
     assert runtime.list_search_hit_table_rows is not None
+
+    runtime.close()
+
+    assert fake_engine.disposed is True
+
+
+def test_build_api_runtime_wires_collection_when_youtube_key_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    fake_client = object()
+    fake_engine = FakeEngine()
+    fake_session_factory = object()
+
+    settings = AppSettings.model_construct(
+        youtube_api_key=SecretStr("test-api-key"),
+        database_url="sqlite:///tmp/research.sqlite",
+        log_level="INFO",
+    )
+
+    def fake_create_client(api_key: SecretStr) -> object:
+        calls.append(f"client:{api_key.get_secret_value()}")
+        return fake_client
+
+    def fake_create_engine(database_url: str) -> FakeEngine:
+        calls.append(f"engine:{database_url}")
+        return fake_engine
+
+    def fake_create_session_factory(engine: FakeEngine) -> object:
+        calls.append(f"session:{engine is fake_engine}")
+        return fake_session_factory
+
+    monkeypatch.setattr(bootstrap, "create_youtube_data_api_client", fake_create_client)
+    monkeypatch.setattr(bootstrap, "create_database_engine", fake_create_engine)
+    monkeypatch.setattr(bootstrap, "create_session_factory", fake_create_session_factory)
+    monkeypatch.setattr(bootstrap, "YouTubeDataApiGateway", FakeGateway)
+
+    runtime = bootstrap.build_api_runtime(settings)
+
+    assert calls == [
+        "engine:sqlite:///tmp/research.sqlite",
+        "session:True",
+        "client:test-api-key",
+    ]
+    assert runtime.collect_videos is not None
 
     runtime.close()
 

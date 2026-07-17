@@ -1,4 +1,6 @@
 import type {
+  CollectionRunCreateResponse,
+  CreateCollectionRunRequest,
   HealthResponse,
   RunListResponse,
   SearchHitListResponse,
@@ -35,7 +37,7 @@ function getApiBaseUrl(): string {
 }
 
 type FetchJsonOptions = {
-  method?: "GET" | "PATCH";
+  method?: "GET" | "PATCH" | "POST";
   body?: unknown;
 };
 
@@ -102,6 +104,15 @@ export function updateVideoAnnotation(
       body: payload,
     },
   );
+}
+
+export function createCollectionRun(
+  payload: CreateCollectionRunRequest,
+): Promise<CollectionRunCreateResponse> {
+  return fetchJson<CollectionRunCreateResponse>("/api/collection-runs", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export function getRuns({ limit, offset }: ListRunsParams): Promise<RunListResponse> {

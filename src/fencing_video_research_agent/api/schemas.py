@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from fencing_video_research_agent.application import CollectVideosResult
 from fencing_video_research_agent.domain import ResearchAnnotation
 from fencing_video_research_agent.ports.stored_data import (
     StoredCollectionRunDetail,
@@ -202,6 +203,52 @@ class VideoAnnotationResponse(BaseModel):
             relevance_label=annotation.relevance_label,
             notes=annotation.notes,
             updated_at=annotation.updated_at,
+        )
+
+
+class CreateCollectionRunRequest(BaseModel):
+    """Request body for controlled browser metadata collection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(max_length=200)
+    max_results: int = Field(default=10, ge=1, le=25)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        """Normalize and require a non-empty query."""
+
+        query = value.strip()
+        if not query:
+            msg = "query must not be empty"
+            raise ValueError(msg)
+        return query
+
+
+class CollectionRunCreateResponse(BaseModel):
+    """Frontend-safe collection result summary."""
+
+    collection_run_id: int
+    query: str
+    max_results: int
+    videos_found: int
+    videos_stored: int
+    search_hits_recorded: int
+    status: str
+
+    @classmethod
+    def from_result(cls, result: CollectVideosResult) -> Self:
+        """Create a response from the collection use-case result."""
+
+        return cls(
+            collection_run_id=int(result.collection_run_id),
+            query=result.query_text,
+            max_results=result.requested_max_results,
+            videos_found=result.search_result_count,
+            videos_stored=result.stored_video_count,
+            search_hits_recorded=result.search_hit_count,
+            status="completed",
         )
 
 

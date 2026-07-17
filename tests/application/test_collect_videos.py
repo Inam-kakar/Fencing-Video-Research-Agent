@@ -281,6 +281,7 @@ def test_successful_collection_stores_videos_query_run_and_hits() -> None:
     )
 
     unit_of_work = unit_of_work_factory.unit_of_work
+    assert result.collection_run_id == CollectionRunRecordId(1)
     assert result.search_result_count == 2
     assert result.unique_video_count == 2
     assert result.stored_video_count == 2

@@ -79,6 +79,21 @@ export type VideoAnnotationResponse = {
   updated_at: string;
 };
 
+export type CreateCollectionRunRequest = {
+  query: string;
+  max_results?: number;
+};
+
+export type CollectionRunCreateResponse = {
+  collection_run_id: number;
+  query: string;
+  max_results: number;
+  videos_found: number;
+  videos_stored: number;
+  search_hits_recorded: number;
+  status: string;
+};
+
 export type RunListItemResponse = {
   run_id: number;
   query_text: string;
